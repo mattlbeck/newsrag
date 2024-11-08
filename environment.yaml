@@ -1,0 +1,15 @@
+name: newsrag
+channels: 
+  - conda-forge
+  - conda-forge/label/haystack-ai_rc
+dependencies:
+  - python=3.11
+  - ipykernel
+  - haystack-ai
+  - gradio
+  - pip
+  - pip:
+    - newspaper3k
+    - lxml_html_clean
+    - feedparser
+    - ollama-haystack
