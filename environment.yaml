@@ -2,10 +2,13 @@ name: newsrag
 channels: 
   - conda-forge
   - conda-forge/label/haystack-ai_rc
+  - pytorch
 dependencies:
   - python=3.11
   - ipykernel
   - haystack-ai
+  - sentence-transformers
+  - pytorch
   - gradio
   - pip
   - pip:

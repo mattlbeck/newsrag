@@ -10,6 +10,7 @@ Install with conda
 
 ```
 conda env create -f environment.yaml
+conda activate newsrag
 ```
 
 Run the Gradio app
