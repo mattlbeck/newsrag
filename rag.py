@@ -11,6 +11,7 @@ from functools import cached_property
 
 import feedparser
 
+
 def get_news(news_rss):
     d = feedparser.parse(news_rss)
     summaries = [x["summary"] for x in d["entries"]]
@@ -71,12 +72,14 @@ class RAG:
     
     def run(self, question):
         # Ask a question
+        print("question", question)
         results = self.pipeline.run(
             {
                 "embedder": {"text": question},
                 "prompt_builder": {"question": question},
             }, include_outputs_from=("retriever", "prompt_builder", "llm")
         )
+        print(results)
         return results
 
 
