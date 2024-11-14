@@ -25,43 +25,15 @@ def load_documents(docs):
     ])
     return document_store
 
-def get_embedding_retriever(docs):
+def get_embedding_retriever(docs, top_k):
     doc_embedder = SentenceTransformersDocumentEmbedder()
     doc_embedder.warm_up()
     docs_with_embeddings = doc_embedder.run([Document(content=d) for d in docs])["documents"]
 
     doc_store = InMemoryDocumentStore()
     doc_store.write_documents(docs_with_embeddings)
-    retriever = InMemoryEmbeddingRetriever(doc_store)
+    retriever = InMemoryEmbeddingRetriever(doc_store, top_k=top_k)
     return retriever
-
-class RAGSummariser:
-
-    prompt_template = """
-        You will be provided with a list of news articles from today. Write a few paragraphs that summarises selected events. Write these summaries as if they are a script for a news anchor to read out. Do not refer to the existance of the news articles themselves, their titles, or their formatting.
-
-        News articles:
-        {% for doc in documents %}
-            ARTICLE START
-            {{ doc.content }}
-            ARTICLE END
-        {% endfor %}
-        """
-
-    def __init__(self):
-        self.prompt_builder = PromptBuilder(template=self.prompt_template)
-        self.llm = OllamaGenerator(model="llama3.2")
-        
-        self.pipeline = Pipeline()
-        self.pipeline.add_component("prompt_builder", self.prompt_builder)
-        self.pipeline.add_component("llm", self.llm)
-        
-        self.pipeline.connect("prompt_builder.prompt", "llm")
-
-    def run(self, articles):
-        return self.pipeline.run({
-            "prompt_builder": {"documents": [Document(content=d) for d in articles][:5]}
-        })
 
 
 class RAG:
@@ -83,7 +55,7 @@ class RAG:
         self.pipeline = Pipeline()
 
         # set up retriever with a sentence embedding
-        self.retriever = get_embedding_retriever(documents)
+        self.retriever = get_embedding_retriever(documents, top_k)
         self.embedder = SentenceTransformersTextEmbedder()
         self.pipeline.add_component("retriever", self.retriever)
         self.pipeline.add_component("embedder", self.embedder)
@@ -101,11 +73,35 @@ class RAG:
     
     def run(self, question):
         # Ask a question
-        print("question", question)
         results = self.pipeline.run(
             {
                 "embedder": {"text": question},
                 "prompt_builder": {"question": question},
+            }, include_outputs_from=("retriever", "prompt_builder", "llm")
+        )
+        print(results)
+        return results
+    
+
+class RAGSummariser(RAG):
+
+    prompt_template = """
+        You will be provided with a list of news articles from today. Write a few paragraphs that summarises selected events. Write these summaries as if they are a script for a news anchor to read out. Do not refer to the existance of the news articles themselves, their titles, or their formatting.
+
+        News articles:
+        {% for doc in documents %}
+            ARTICLE START
+            {{ doc.content }}
+            ARTICLE END
+        {% endfor %}
+        """
+    
+    def run(self, question):
+        # Ask a question
+        print("question", question)
+        results = self.pipeline.run(
+            {
+                "embedder": {"text": question},
             }, include_outputs_from=("retriever", "prompt_builder", "llm")
         )
         print(results)
