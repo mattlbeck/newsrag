@@ -35,6 +35,35 @@ def get_embedding_retriever(docs):
     retriever = InMemoryEmbeddingRetriever(doc_store)
     return retriever
 
+class RAGSummariser:
+
+    prompt_template = """
+        You will be provided with a list of news articles from today. Write a few paragraphs that summarises selected events. Write these summaries as if they are a script for a news anchor to read out. Do not refer to the existance of the news articles themselves, their titles, or their formatting.
+
+        News articles:
+        {% for doc in documents %}
+            ARTICLE START
+            {{ doc.content }}
+            ARTICLE END
+        {% endfor %}
+        """
+
+    def __init__(self):
+        self.prompt_builder = PromptBuilder(template=self.prompt_template)
+        self.llm = OllamaGenerator(model="llama3.2")
+        
+        self.pipeline = Pipeline()
+        self.pipeline.add_component("prompt_builder", self.prompt_builder)
+        self.pipeline.add_component("llm", self.llm)
+        
+        self.pipeline.connect("prompt_builder.prompt", "llm")
+
+    def run(self, articles):
+        return self.pipeline.run({
+            "prompt_builder": {"documents": [Document(content=d) for d in articles][:5]}
+        })
+
+
 class RAG:
     # Build a RAG pipeline
     prompt_template = """

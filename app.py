@@ -1,5 +1,5 @@
 import gradio as gr
-from rag import RAG, get_news
+from rag import RAG, get_news, RAGSummariser
 from multiprocessing.pool import ThreadPool
 from queue import Queue
 
@@ -31,9 +31,26 @@ newsrag = RAG(documents=news)
 
 with gr.Blocks() as demo:
     chatbot = gr.Chatbot(type="messages")
+    go_summarise = gr.Button("Summarise news")
     text = gr.Textbox()
     prompt = gr.Textbox()
     state = gr.State()
+
+    def summarise():
+        rags = RAGSummariser()
+        streamer = str
+        streamer = StreamingText()
+        rags.llm.streaming_callback = streamer
+
+        pool = ThreadPool(processes=1)
+        async_result = pool.apply_async(rags.run, [news])
+
+        history = [{"role": "assistant", "content": ""}]
+        for new_token in iter(streamer):
+            history[-1]["content"] += new_token
+            yield history
+        result = async_result.get()
+        yield [{"role": "assistant", "content": result["llm"]["replies"][0]}]
 
     def user(user_message, history:list):
         if history is None:
@@ -58,6 +75,6 @@ with gr.Blocks() as demo:
         pipeline_result = async_result.get()
         history[-1] = {"role": "assistant", "content": pipeline_result["llm"]["replies"][0]}
         yield history, pipeline_result["prompt_builder"]["prompt"]
-
+    go_summarise.click(summarise, None, [chatbot])
     text.submit(user, [text, chatbot], [text, chatbot], queue=False).then(bot, chatbot, [chatbot, prompt])
 demo.launch()
