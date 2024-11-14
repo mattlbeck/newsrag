@@ -8,27 +8,13 @@ from haystack_integrations.components.generators.ollama import OllamaGenerator
 from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from functools import cached_property
+import arrow
 
-import feedparser
-
-
-def get_news(news_rss):
-    d = feedparser.parse(news_rss)
-    summaries = [x["summary"] for x in d["entries"]]
-    return summaries
-
-def load_documents(docs):
-    # Write documents to InMemoryDocumentStore
-    document_store = InMemoryDocumentStore()
-    document_store.write_documents([
-        Document(content=d) for d in docs
-    ])
-    return document_store
 
 def get_embedding_retriever(docs, top_k):
     doc_embedder = SentenceTransformersDocumentEmbedder()
     doc_embedder.warm_up()
-    docs_with_embeddings = doc_embedder.run([Document(content=d) for d in docs])["documents"]
+    docs_with_embeddings = doc_embedder.run(docs)["documents"]
 
     doc_store = InMemoryDocumentStore()
     doc_store.write_documents(docs_with_embeddings)
@@ -50,7 +36,7 @@ class RAG:
     Answer:
     """
 
-    def __init__(self, documents, top_k=5, embeddings=True, streaming_callback=None):
+    def __init__(self, documents: list[Document], top_k=5, embeddings=True, streaming_callback=None):
         self.embeddings = embeddings
         self.pipeline = Pipeline()
 
@@ -86,7 +72,7 @@ class RAG:
 class RAGSummariser(RAG):
 
     prompt_template = """
-        You will be provided with a list of news articles from today. Write a few paragraphs that summarises selected events. Write these summaries as if they are a script for a news anchor to read out. Do not refer to the existance of the news articles themselves, their titles, or their formatting.
+        You will be provided with a list of news articles from today. Write a few paragraphs that summarises selected events. Do not refer to the existance of the news articles themselves, their titles, or their formatting.
 
         News articles:
         {% for doc in documents %}
@@ -97,14 +83,15 @@ class RAGSummariser(RAG):
         """
     
     def run(self, question):
+        min_date = arrow.utcnow().shift(days=-1)
         # Ask a question
-        print("question", question)
         results = self.pipeline.run(
             {
                 "embedder": {"text": question},
-            }, include_outputs_from=("retriever", "prompt_builder", "llm")
+                "retriever": {"filters": {"field": "meta.date", "operator": ">", "value": min_date }}
+            }, 
+            include_outputs_from=("retriever", "prompt_builder", "llm")
         )
-        print(results)
         return results
 
 

@@ -1,5 +1,6 @@
 import gradio as gr
-from rag import RAG, get_news, RAGSummariser
+from rag import RAG, RAGSummariser
+from feeds import TheGuardian
 from multiprocessing.pool import ThreadPool
 from queue import Queue
 
@@ -24,8 +25,8 @@ class StreamingText:
 
 
 
-news = get_news("https://theguardian.com/uk/rss")
-newsrag = RAGSummariser(documents=news)
+news = TheGuardian()
+newsrag = RAGSummariser(documents=list(news.get_documents()))
 
 
 
