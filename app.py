@@ -1,6 +1,8 @@
 import gradio as gr
 from rag import RAG, RAGSummariser
 from feeds import TheGuardian, AssociatedPress, BBC, download_feeds
+from haystack_integrations.components.generators.ollama import OllamaGenerator
+
 from multiprocessing.pool import ThreadPool
 from queue import Queue
 from top2vec import Top2Vec
@@ -29,6 +31,14 @@ class StreamingText:
 
 news = download_feeds((TheGuardian, AssociatedPress, BBC))
 
+def describe_topic(topic_words):
+    llm = OllamaGenerator(model="llama3.2")
+    prompt = f"""
+    Below is a list of keywords that all derive from one topic. Please provide a short description, maximum 5 words, of the topic that best fits. Output only the topic description.
+    Keywords: {topic_words[:10]}
+    Topic: 
+    """
+    return llm.run(prompt=prompt)["replies"][0]
 
 
 with gr.Blocks() as demo:
@@ -53,8 +63,10 @@ with gr.Blocks() as demo:
         )
         num_topics = model.get_num_topics()
         topic_words, word_scores, topic_nums = model.get_topics(num_topics)
-        
-        return model, gr.update(choices=[", ".join(words[:5]) for words in topic_words], value=None)
+        topic_descriptions = []
+        for topic in topic_words:
+            topic_descriptions.append(describe_topic(topic))
+        return model, gr.update(choices=topic_descriptions, value=None)
 
 
     def user(user_message, history:list):
