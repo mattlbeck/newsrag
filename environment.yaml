@@ -16,3 +16,5 @@ dependencies:
     - lxml_html_clean
     - feedparser
     - ollama-haystack
+    - arrow
+    - top2vec

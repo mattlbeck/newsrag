@@ -63,6 +63,7 @@ class RAG:
             {
                 "embedder": {"text": question},
                 "prompt_builder": {"question": question},
+                "retriever": {"filters": {"field": "meta.date", "operator": ">", "value": min_date }}
             }, include_outputs_from=("retriever", "prompt_builder", "llm")
         )
         print(results)
@@ -81,16 +82,25 @@ class RAGSummariser(RAG):
             ARTICLE END
         {% endfor %}
         """
+    def __init__(self):
+        self.prompt_builder = PromptBuilder(template=self.prompt_template)
+        self.llm = OllamaGenerator(model="llama3.2")
+
+        self.pipeline = Pipeline()
+        
+        self.pipeline.add_component("prompt_builder", self.prompt_builder)
+        self.pipeline.add_component("llm", self.llm)
+        
+        self.pipeline.connect("prompt_builder.prompt", "llm")
     
-    def run(self, question):
+    def run(self, documents):
         min_date = arrow.utcnow().shift(days=-1)
         # Ask a question
         results = self.pipeline.run(
             {
-                "embedder": {"text": question},
-                "retriever": {"filters": {"field": "meta.date", "operator": ">", "value": min_date }}
+                "prompt_builder": {"documents": documents}
             }, 
-            include_outputs_from=("retriever", "prompt_builder", "llm")
+            include_outputs_from=("prompt_builder", "llm")
         )
         return results
 

@@ -90,7 +90,9 @@ class AssociatedPress(Feed):
                         })
 
 def download_feeds(feed_cls: list):
-    docs = []
+    unique_docs = {}
     for feed in feed_cls:
-        docs += feed().get_documents()
-    return docs
+        docs = feed().get_documents()
+        for doc in docs:
+            unique_docs[doc.id] = doc
+    return list(unique_docs.values())
