@@ -42,7 +42,6 @@ def describe_topic(topic_words):
 
 
 with gr.Blocks() as demo:
-    text = gr.Textbox(label="Summarise news about...")
     topic_selection = gr.Dropdown(label="Select a topic", type="index")
     topic_model = gr.State()
 
@@ -51,7 +50,7 @@ with gr.Blocks() as demo:
     query = gr.Textbox()
     topic_model = gr.State()
 
-    def topics(topic_selection):
+    def topics():
         Top2Vec.contextual_top2vec = False
         model = Top2Vec(
             [d.content for d in news], 

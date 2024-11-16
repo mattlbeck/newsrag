@@ -73,13 +73,11 @@ class RAG:
 class RAGSummariser(RAG):
 
     prompt_template = """
-        You will be provided with a list of news articles from today. Write a few paragraphs that summarises selected events. Do not refer to the existance of the news articles themselves, their titles, or their formatting.
+        You will be provided with a list of news articles from today. Write a few paragraphs that summarises selected events. Do not refer to the existance of the news articles themselves, their titles, or their formatting. With each statement you provide, leave 1 or more citations in the form of [ARTICLE NUMBER], where ARTICLE NUMBER corresponds to the number of the articles from which you sourced that statement. You may source a statement from more than one article and site them as [ARTICLE 1, ARTICLE 2, etc].
 
         News articles:
         {% for doc in documents %}
-            ARTICLE START
-            {{ doc.content }}
-            ARTICLE END
+            ARTICLE {{ loop.index }}: {{ doc.content }}
         {% endfor %}
         """
     def __init__(self):
