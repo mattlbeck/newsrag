@@ -24,7 +24,10 @@ def strip_tags(html: str):
 
 def get_date(date_string: str):
     """Return a date object from an RSS formatted date string"""
-    arrow.get(date_string, "ddd, DD MMM YYYY HH:mm:ss ZZZ")
+    try:
+        arrow.get(date_string, "ddd, DD MMM YYYY HH:mm:ss ZZZ")
+    except arrow.parser.ParserMatchError:
+        return None
 
 
 class Feed:
@@ -36,7 +39,7 @@ class Feed:
     _url = None
 
     def feed2doc(self, item):
-        return Document(content=strip_tags(item["summary"]),
+        return Document(content=item["title"],
                         meta={
                             "date": get_date(item["published"]),
                             "url": item["link"],
@@ -49,7 +52,51 @@ class Feed:
     def parse(self):
         d = feedparser.parse(self._url)
         return d["entries"]
+    
+# Inheriting feeds are translated to documents with whatever preprocessing is needed
+# Various fields are added to the main content depending on how the vendor uses the feed
+class CNBC(Feed):
+    _url = "https://www.cnbc.com/id/100727362/device/rss/rss.html"
 
+class ABC(Feed):
+    _url = "https://abcnews.go.com/abcnews/internationalheadlines"
+
+    def feed2doc(self, item):
+        return Document(content=item["description"],
+                        meta={
+                            "date": get_date(item["published"]),
+                            "url": item["link"],
+                            "title": item["title"]
+                        })
+    
+class FoxNews(Feed):
+    _url = "https://moxie.foxnews.com/google-publisher/latest.xml"
+
+    def feed2doc(self, item):
+        """Fox news has a 'content' field in which the whole article appears"""
+        return Document(content=item["description"],
+                        meta={
+                            "date": get_date(item["published"]),
+                            "url": item["link"],
+                            "title": item["title"]
+                        })
+
+class TheCipherBrief(Feed):
+    """This may not be an ideal feed - description is much of the article and titles are not very headline-y"""
+    _url = "https://www.thecipherbrief.com/feed"
+
+class EuroNews(Feed):
+    _url = "https://www.euronews.com/rss"
+
+    def feed2doc(self, item):
+        """Fox news has a 'content' field in which the whole article appears"""
+        return Document(content=item["description"],
+                        meta={
+                            "date": get_date(item["published"]),
+                            "url": item["link"],
+                            "title": item["title"]
+                        })
+    
 class TheGuardian(Feed):
     _url = "https://theguardian.com/uk/rss"
      
