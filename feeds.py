@@ -35,16 +35,21 @@ class Feed:
     Base class for feeds specific to a vendor. This allows
     customisation of how inheriting feeds are processed
     """
-
+    name = None
     _url = None
 
-    def feed2doc(self, item):
-        return Document(content=item["title"],
-                        meta={
+    def _feed2doc(self, item, content, **meta):
+        default_meta = {
                             "date": get_date(item["published"]),
-                            "url": item["link"],
-                            "title": item["title"]
-                        })
+                            "link": item["link"],
+                            "title": item["title"],
+                            "vendor": self.name
+                        }
+        default_meta.update(meta)
+        return Document(content=content, meta=default_meta)
+    
+    def feed2doc(self, item):
+        return self._feed2doc(item, item["title"])
 
     def get_documents(self):
         return [self.feed2doc(item) for item in self.parse()]
@@ -56,85 +61,61 @@ class Feed:
 # Inheriting feeds are translated to documents with whatever preprocessing is needed
 # Various fields are added to the main content depending on how the vendor uses the feed
 class CNBC(Feed):
+    name = "CNBC"
     _url = "https://www.cnbc.com/id/100727362/device/rss/rss.html"
 
 class ABC(Feed):
+    name = "ABC"
     _url = "https://abcnews.go.com/abcnews/internationalheadlines"
 
     def feed2doc(self, item):
-        return Document(content=item["description"],
-                        meta={
-                            "date": get_date(item["published"]),
-                            "url": item["link"],
-                            "title": item["title"]
-                        })
+        return self._feed2doc(item, item["description"])
     
 class FoxNews(Feed):
+    name = "Fox News"
     _url = "https://moxie.foxnews.com/google-publisher/latest.xml"
 
     def feed2doc(self, item):
         """Fox news has a 'content' field in which the whole article appears"""
-        return Document(content=item["description"],
-                        meta={
-                            "date": get_date(item["published"]),
-                            "url": item["link"],
-                            "title": item["title"]
-                        })
+        return self._feed2doc(item, item["description"])
 
 class TheCipherBrief(Feed):
     """This may not be an ideal feed - description is much of the article and titles are not very headline-y"""
     _url = "https://www.thecipherbrief.com/feed"
 
 class EuroNews(Feed):
+    name = "Euro News"
     _url = "https://www.euronews.com/rss"
 
     def feed2doc(self, item):
         """Fox news has a 'content' field in which the whole article appears"""
-        return Document(content=item["description"],
-                        meta={
-                            "date": get_date(item["published"]),
-                            "url": item["link"],
-                            "title": item["title"]
-                        })
+        return self._feed2doc(item, item["description"])
     
 class TheGuardian(Feed):
+    name = "The Guardian"
     _url = "https://theguardian.com/uk/rss"
      
     def feed2doc(self, item):
         content = strip_tags(item["summary"]).rstrip("Continue reading...")
-        return Document(content=item["title"],
-                        meta={
-                            "date": get_date(item["published"]),
-                            "url": item["link"],
-                            "title": item["title"]
-                        })
+        return self._feed2doc(item, item["title"])
 
 
 class BBC(Feed):
+    name = "BBC"
     _url = "https://feeds.bbci.co.uk/news/rss.xml"
 
     def feed2doc(self, item):
         """BBC summaries require the title for context"""
         content = strip_tags(item["summary"])
-
-        return Document(content="\n".join([item["title"], content]),
-                        meta={
-                            "date": get_date(item["published"]),
-                            "url": item["link"],
-                            "title": item["title"]
-                        })
+        return self._feed2doc(item, "\n".join([item["title"], content]))
     
 class AssociatedPress(Feed):
+    name = "The Associated Press"
     _url = "https://news.google.com/rss/search?q=when:24h+allinurl:apnews.com&hl=en-GB&gl=GB&ceid=GB:en"
     def feed2doc(self, item):
         """AP google news feeds have nothing in the summary"""
         title = item["title"].rstrip(" - The Associated Press")
-        return Document(content=title,
-                        meta={
-                            "date": get_date(item["published"]),
-                            "url": item["link"],
-                            "title": title
-                        })
+        return self._feed2doc(item, title)
 
 def download_feeds(feed_cls: list):
     unique_docs = {}
