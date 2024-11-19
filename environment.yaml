@@ -9,7 +9,6 @@ dependencies:
   - haystack-ai
   - sentence-transformers
   - pytorch
-  - gradio
   - pip
   - pip:
     - newspaper3k
@@ -18,3 +17,5 @@ dependencies:
     - ollama-haystack
     - arrow
     - top2vec
+    - gradio>=5.5.0
+    - pytest
