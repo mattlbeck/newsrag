@@ -30,15 +30,31 @@ def get_document_store():
     return document_store
 
 
-def get_embedding_retriever(docs, top_k):
-    doc_embedder = SentenceTransformersDocumentEmbedder()
-    doc_embedder.warm_up()
-    docs_with_embeddings = doc_embedder.run(docs)["documents"]
 
-    doc_store = InMemoryDocumentStore()
-    doc_store.write_documents(docs_with_embeddings)
-    retriever = InMemoryEmbeddingRetriever(doc_store, top_k=top_k)
-    return retriever
+
+class StreamingGeneratorMixin:
+    """Defines functions that provide async streamed results from an LLM component.
+    
+    These methods assume that there is an `llm` component as an attribute and a `run` method
+    is defined.
+    """
+    def run_async(self, **run_kwargs):
+        streamer = generator.StreamingText()
+        self.llm.streaming_callback = streamer
+
+        pool = ThreadPool(processes=1)
+  
+        async_result = pool.apply_async(self.run, kwds=run_kwargs, error_callback=lambda x: print("Error in generation thread: ", x))
+        return async_result
+
+    
+    def stream_output(self, documents: list[Document]):
+    
+        # Stream the summary output, transforming citations
+        # on the fly and building a bibliography to output to a second
+        # component
+        yield from generator.stream_sourced_output(iter(self.llm.streaming_callback), documents)
+
 
 class JointDocumentIndexingPipeline:
     """
@@ -57,7 +73,13 @@ class JointDocumentIndexingPipeline:
         return self.pipeline.run({"embedder": {"documents": documents}})
         
 
-class TopicPipeline:
+class TopicModelPipeline:
+    """Discovers topics from documents within a document store.
+    
+    Documents used in the topic discovery are updated with metadata to identify their
+    topic and topic score.
+    """
+
 
     def __init__(self, document_store):
         self._store = document_store
@@ -118,6 +140,15 @@ Topic:
     def run(self, topic_words: list[str]):
         return self.pipeline.run({ "prompt": {"topic_words": topic_words}})["llm"]["replies"][0]
 
+def get_embedding_retriever(docs, top_k):
+    doc_embedder = SentenceTransformersDocumentEmbedder()
+    doc_embedder.warm_up()
+    docs_with_embeddings = doc_embedder.run(docs)["documents"]
+
+    doc_store = InMemoryDocumentStore()
+    doc_store.write_documents(docs_with_embeddings)
+    retriever = InMemoryEmbeddingRetriever(doc_store, top_k=top_k)
+    return retriever
 
 class RAG:
     # Build a RAG pipeline
@@ -167,8 +198,12 @@ class RAG:
         return results
     
 class TopicRetrievalPipeline:
+    """Retrieve documents from a document score that belong to a specific topic.
+    
+    A ranker will additionally order the topics and limit the number of documents returned.
+    """
 
-    def __init__(self, document_store, document_count=30):
+    def __init__(self, document_store, document_count=10):
         self.document_store = document_store
         self.retriever = FilterRetriever(document_store=document_store)
         self.ranker = MetaFieldRanker(meta_field="topic_score", missing_meta="drop", top_k=document_count)
@@ -186,8 +221,7 @@ class TopicRetrievalPipeline:
         return results["ranker"]["documents"]
 
 
-
-class RAGSummariser(RAG):
+class RAGSummariser(StreamingGeneratorMixin):
 
     prompt_template = """You will be provided with a list of news articles from today. Write a few paragraphs that summarises the news. Do not refer to the existance of the news articles themselves, their titles, or their formatting. After each statement, provide one or more citations in the form "[ARTICLE 1]", where ARTICLE 1 corresponds to the identifier of the article from which you sourced your statement. You may source a statement from more than one article, for example "[ARTICLE 1, ARTICLE 2]". Place these citations within the sentence e.g. "This is a statement [ARTICLE 1]."
 
@@ -214,23 +248,6 @@ Summary:"""
             include_outputs_from=["prompt_builder"]
         )
         return results
-    
-    def run_async(self, documents):
-        streamer = generator.StreamingText()
-        self.llm.streaming_callback = streamer
-
-        pool = ThreadPool(processes=1)
-  
-        async_result = pool.apply_async(self.run, kwds={"documents": documents}, error_callback=lambda x: print("Error in generation thread: ", x))
-        return async_result
-
-    
-    def stream_output(self, documents: list[Document]):
-    
-        # Stream the summary output, transforming citations
-        # on the fly and building a bibliography to output to a second
-        # component
-        yield from generator.stream_sourced_output(iter(self.llm.streaming_callback), documents)
 
 
 

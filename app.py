@@ -14,6 +14,7 @@ document_store = get_document_store()
 with gr.Blocks() as demo:
 
     def topics():
+        """Downloads news feeds and indexes their content in to the central document store"""
         # download news from various feeds, formatted as haystack Document objects complete with some metadata
         news = feeds.download_feeds((feeds.TheGuardian, feeds.AssociatedPress, feeds.BBC, feeds.ABC, feeds.CNBC, feeds.FoxNews, feeds.EuroNews, feeds.TechCrunch, feeds.Wired, feeds.ArsTechnica))
         print(f"{len(news)} news articles")
@@ -40,8 +41,11 @@ with gr.Blocks() as demo:
         return "", history + [{"role": "user", "content": user_message}]
     
     def summarise(topic_num: int):
-        """This clears the chat history and starts again with a new news summary"""
-        documents = TopicRetrievalPipeline(document_store=document_store, document_count=10).run(topic_id=topic_num)
+        """Summarises the given topic by retrieving documents related to that topic and 
+        putting them throuth the summariser pipeline.
+        
+        This clears the chat history and starts again with a new news summary"""
+        documents = TopicRetrievalPipeline(document_store=document_store, document_count=30).run(topic_id=topic_num)
         newsrag = RAGSummariser()
 
         async_result = newsrag.run_async(documents=documents)
@@ -78,7 +82,6 @@ with gr.Blocks() as demo:
         
         yield history, pipeline_result["prompt_builder"]["prompt"]
 
-    #text.submit(summarise, [text], [chatbot])
     with gr.Row():
         title = gr.Markdown("# newsrag")
     with gr.Row():

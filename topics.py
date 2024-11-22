@@ -6,54 +6,14 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack import Document
 import numpy as np
 from typing import List
-
-class DocumentTopics:
-    """Builds and holds a topic model along with the input documents"""
-
-    def __init__(self, documents):
-        self.documents = documents
-        self.model = None
-
-    def run(self):
-        """Run model on the documents"""
-
-        # temp workaround for a bug on this attribute
-        Top2Vec.contextual_top2vec = False
-        self.model = Top2Vec(
-            [d.content for d in self.documents], 
-            embedding_model='universal-sentence-encoder', 
-            min_count=1, 
-            speed="deep-learn", 
-            ngram_vocab=False,
-            keep_documents=True
-        )
-
-    def get_topic_descriptions(self):
-        """
-        Runs topic keywords through an LLM to produce readable descriptions for
-        each
-        """
-        num_topics = self.model.get_num_topics()
-        topic_words, word_scores, topic_nums = self.model.get_topics(num_topics)
-        topic_descriptions = []
-        for topic in topic_words:
-            topic_descriptions.append(describe_topic(topic))
-        return topic_descriptions
-
-    def get_documents_for_topic(self, topic_num: int):
-        """
-        Retrieves documents that belong to the given topic.
-        """
-        _, _, document_ids = self.model.search_documents_by_topic(topic_num=topic_num, num_docs=10)
-        
-        documents = []
-        for doc_id in document_ids:
-            documents.append(self.documents[doc_id])
-        return documents
     
 @component
 class JointEmbeddingMixin:
-    """Jointly embed documents along with individual words"""
+    """Jointly embed documents along with individual words to form a vocabulary.
+    
+    The result is a set of documents that correspond to the embedded documents and additionally
+    a set of embedded words.
+    """
 
     def __init__(self, *args, min_word_count=3, **kwargs): 
         self.min_word_count=min_word_count
@@ -81,11 +41,18 @@ class JointEmbeddingMixin:
     
 
 class SentenceTransformersJointEmbedder(JointEmbeddingMixin, SentenceTransformersDocumentEmbedder):
-    pass
+    """Uses a sentence transformer as an embedder but additonally embeds a vocabulary of words as
+    another set of documents."""
         
 @component        
 class TopicModel(Top2Vec):
+    """
+    Custom haystack component that uses Top2Vec to discover topics from a set of documents and 
+    related vocabularly. The documents are updated with metadata on their assigned topics.
 
+    The component outputs: the documents with additional topic metadata, and a list of topics and
+    topic keywords to describe them.
+    """
     def __init__(self,
                  c_top2vec_smoothing_window=5,
                  topic_merge_delta=0.1,
@@ -160,13 +127,3 @@ class TopicModel(Top2Vec):
         topic_words, word_scores, topic_nums = self.get_topics()
         return {"documents": self.documents, "topic_words": topic_words}
         
-
-
-def describe_topic(topic_words):
-    llm = OllamaGenerator(model="llama3.2")
-    prompt = f"""
-    Below is a list of keywords derived from various news articles that share the same topic. Please provide a short description, maximum 5 words, of the topic that best fits. Output only the topic description.
-    Keywords: {topic_words[:10]}
-    Topic: 
-    """
-    return llm.run(prompt=prompt)["replies"][0]
