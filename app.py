@@ -1,24 +1,36 @@
 import gradio as gr
 from generator import Sources, StreamingText
-from rag import RAG, RAGSummariser
+from rag import RAG, RAGSummariser, get_document_store, JointDocumentIndexingPipeline, TopicPipeline, DescribeTopicPipeline, TopicRetrievalPipeline
 import feeds
 import generator
-
+import arrow
 
 from multiprocessing.pool import ThreadPool
 from topics import DocumentTopics
 import re
 
+document_store = get_document_store()
 
 with gr.Blocks() as demo:
 
     def topics():
-        news = feeds.download_feeds((feeds.TheGuardian, feeds.AssociatedPress, feeds.BBC, feeds.ABC, feeds.CNBC, feeds.FoxNews, feeds.EuroNews ))
+        # download news from various feeds, formatted as haystack Document objects complete with some metadata
+        news = feeds.download_feeds((feeds.TheGuardian, feeds.AssociatedPress, feeds.BBC, feeds.ABC, feeds.CNBC, feeds.FoxNews, feeds.EuroNews, feeds.TechCrunch, feeds.Wired, feeds.ArsTechnica))
         print(f"{len(news)} news articles")
-        model = DocumentTopics(news)
-        model.run()
+
+        # Use the indexing pipeline to embed and write these documents to the chosen document store
+        indexing = JointDocumentIndexingPipeline(document_store=document_store, min_word_count=0)
+        indexing.run(news)
+
+        # the topic pipeline discovers topics within the embedded documents and labels them with the embedded word vocabulary
+        topics = TopicPipeline(document_store=document_store)
+        result = topics.run(min_date=arrow.utcnow().shift(days=-1))
+
+        # Describe each topic with a human readable title
+        topic_describer = DescribeTopicPipeline()
+        topic_descriptions = [topic_describer.run(topic) for topic in result["topic_model"]["topic_words"]]
         
-        return model, gr.update(choices=model.get_topic_descriptions(), value=None)
+        return gr.update(choices=topic_descriptions, value=None)
 
 
     def user(user_message, history:list):
@@ -27,18 +39,16 @@ with gr.Blocks() as demo:
             history = []
         return "", history + [{"role": "user", "content": user_message}]
     
-    def summarise(topic_model: DocumentTopics, topic_num: int):
+    def summarise(topic_num: int):
         """This clears the chat history and starts again with a new news summary"""
-        
+        documents = TopicRetrievalPipeline(document_store=document_store, document_count=10).run(topic_id=topic_num)
         newsrag = RAGSummariser()
 
-        topic_documents = topic_model.get_documents_for_topic(topic_num)
-
-        async_result = newsrag.run_async(topic_documents)
+        async_result = newsrag.run_async(documents=documents)
 
         history = [{"role": "assistant", "content": ""}]
         # Run the news summarisation pipeline
-        for content, sources in newsrag.stream_output(topic_documents):
+        for content, sources in newsrag.stream_output(documents):
             history[0]["content"] = content
             bibliography = "\n".join(sources.generate_bibliography())
             yield history, bibliography
@@ -79,6 +89,6 @@ with gr.Blocks() as demo:
         with gr.Column():
             sources = gr.Markdown("Sources go here", container=True, height=800)
     topic_model = gr.State()
-    demo.load(topics, outputs=[topic_model, topic_selection])
-    topic_selection.select(summarise, [topic_model, topic_selection], [chatbot, sources])
+    demo.load(topics, outputs=[topic_selection])
+    topic_selection.select(summarise, [topic_selection], [chatbot, sources])
 demo.launch()

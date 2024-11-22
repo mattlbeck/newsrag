@@ -25,9 +25,9 @@ def strip_tags(html: str):
 def get_date(date_string: str):
     """Return a date object from an RSS formatted date string"""
     try:
-        arrow.get(date_string, "ddd, DD MMM YYYY HH:mm:ss ZZZ")
+        return arrow.get(date_string, "ddd, DD MMM YYYY HH:mm:ss ZZZ").timestamp()
     except arrow.parser.ParserMatchError:
-        return None
+        return arrow.get(date_string, "ddd, DD MMM YYYY HH:mm:ss Z").timestamp()
 
 
 class Feed:
@@ -115,7 +115,40 @@ class AssociatedPress(Feed):
     def feed2doc(self, item):
         """AP google news feeds have nothing in the summary"""
         title = item["title"].rstrip(" - The Associated Press")
-        return self._feed2doc(item, title)
+        return self._feed2doc(item, title, title=title)
+    
+
+# tech
+class TechCrunch(Feed):
+    name = "TechCrunch"
+    _url = "https://techcrunch.com/feed/"
+    def feed2doc(self, item):
+        content = strip_tags(item["description"]).rstrip("© 2024 TechCrunch. All rights reserved. For personal use only.")
+        content = item["title"] + " " + content
+        return self._feed2doc(item, content)
+    
+class Wired(Feed):
+    name = "Wired"
+    _url = "https://www.wired.com/feed/rss"
+    def feed2doc(self, item):
+        return self._feed2doc(item, item["description"])
+    
+class ArsTechnica(Feed):
+    name = "Ars Technica"
+    _url = "https://feeds.arstechnica.com/arstechnica/technology-lab"
+    def feed2doc(self, item):
+        content = strip_tags(item["description"])
+        content = item["title"] + " " + content
+        return self._feed2doc(item, content)
+
+# Science
+class NewScientist(Feed):
+    name = "New Scientist"
+    _url = "https://www.newscientist.com/section/news/feed/"
+    def feed2doc(self, item):
+        content = strip_tags(item["description"])
+        content = item["title"] + " " + content
+        return self._feed2doc(item, content)
 
 def download_feeds(feed_cls: list):
     unique_docs = {}

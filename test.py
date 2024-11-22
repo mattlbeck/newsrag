@@ -1,5 +1,6 @@
 import generator
 from haystack import Document
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 def test_extract_citations():
     assert generator.transform_citations("[ARTICLE 1]") == ("[", [1], "]")
@@ -23,3 +24,12 @@ def test_stream_with_sources():
 
     assert content == "this is a statement [1].\n This is another statement [1,2]"
     assert sources._sources == documents
+
+
+def test_joint_embedding():
+    store = InMemoryDocumentStore()
+    from rag import JointDocumentIndexingPipeline, get_document_store
+    p = JointDocumentIndexingPipeline(store, min_word_count=0)
+    p.run([Document(content="hello world")])
+    assert store.count_documents() == 3
+    
