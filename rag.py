@@ -30,8 +30,6 @@ def get_document_store():
     return document_store
 
 
-
-
 class StreamingGeneratorMixin:
     """Defines functions that provide async streamed results from an LLM component.
     
@@ -48,12 +46,12 @@ class StreamingGeneratorMixin:
         return async_result
 
     
-    def stream_output(self, documents: list[Document]):
+    def stream_output(self, documents: list[Document], sources: generator.Sources):
     
         # Stream the summary output, transforming citations
         # on the fly and building a bibliography to output to a second
         # component
-        yield from generator.stream_sourced_output(iter(self.llm.streaming_callback), documents)
+        yield from generator.stream_sourced_output(iter(self.llm.streaming_callback), sources, documents)
 
 
 class JointDocumentIndexingPipeline:
@@ -139,63 +137,66 @@ Topic:
 
     def run(self, topic_words: list[str]):
         return self.pipeline.run({ "prompt": {"topic_words": topic_words}})["llm"]["replies"][0]
+    
 
-def get_embedding_retriever(docs, top_k):
-    doc_embedder = SentenceTransformersDocumentEmbedder()
-    doc_embedder.warm_up()
-    docs_with_embeddings = doc_embedder.run(docs)["documents"]
-
-    doc_store = InMemoryDocumentStore()
-    doc_store.write_documents(docs_with_embeddings)
-    retriever = InMemoryEmbeddingRetriever(doc_store, top_k=top_k)
-    return retriever
-
-class RAG:
-    # Build a RAG pipeline
-    prompt_template = """
-    Given these news article summaries, answer the question.
-    Article Summaries:
-    {% for doc in documents %}
-        ARTICLE START
-        {{ doc.content }}
-        ARTICLE END
-    {% endfor %}
-    Question: {{question}}
-    Answer:
+class QARetrievalPipeline:
+    """Retrieve documents from a document score relevant to the query.
+    
+    A ranker will additionally order the topics and limit the number of documents returned.
     """
 
-    def __init__(self, documents: list[Document], top_k=5, embeddings=True, streaming_callback=None):
-        self.embeddings = embeddings
-        self.pipeline = Pipeline()
-
-        # set up retriever with a sentence embedding
-        self.retriever = get_embedding_retriever(documents, top_k)
+    def __init__(self, document_store, document_count=10):
+        self.document_store = document_store
+        self.retriever = InMemoryEmbeddingRetriever(document_store, top_k=document_count)
         self.embedder = SentenceTransformersTextEmbedder()
-        self.pipeline.add_component("retriever", self.retriever)
+
+        self.pipeline = Pipeline()
         self.pipeline.add_component("embedder", self.embedder)
-       
+        self.pipeline.add_component("retriever", self.retriever)
+        self.pipeline.connect("embedder", "retriever")
+
+    def run(self, query) -> list[Document]:
+        results = self.pipeline.run(
+            {
+                "embedder": {"text": query},
+                "retriever": {"filters": {"field": "meta.type", "operator": "==", "value": "document"}}
+            }
+        )
+        return results["retriever"]["documents"]
+    
+class QAGeneratorPipeline(StreamingGeneratorMixin):
+    """Classic QA pipeline over documents in the given document store"""
+    prompt_template = """You will be provided with a list of news articles from today. Based on these articles, answer the user's question. Do not refer to the existance of the news articles themselves, their titles, or their formatting. After each statement, provide one or more citations in the form "[ARTICLE 1]", where ARTICLE 1 corresponds to the identifier of the article from which you sourced your statement. You may source a statement from more than one article, for example "[ARTICLE 1, ARTICLE 2]". Place these citations within the sentence e.g. "This is a statement [ARTICLE 1]."
+
+News articles:
+{% for doc in documents %}
+ARTICLE {{ loop.index }}: {{ doc.content }}
+{% endfor %}
+
+Question: {{ question }}
+Answer
+"""
+
+    def __init__(self, streaming_callback=None):
 
         self.prompt_builder = PromptBuilder(template=self.prompt_template)
         self.llm = OllamaGenerator(model="llama3.2", streaming_callback=streaming_callback)
         
+        self.pipeline = Pipeline()
         self.pipeline.add_component("prompt_builder", self.prompt_builder)
         self.pipeline.add_component("llm", self.llm)
         
-        self.pipeline.connect("embedder.embedding", "retriever.query_embedding")
-        self.pipeline.connect("retriever.documents", "prompt_builder")
         self.pipeline.connect("prompt_builder.prompt", "llm")
     
-    def run(self, question):
-        # Ask a question
-        min_date = arrow.utcnow().shift(days=-1)
+    def run(self, question: str, documents: list[Document], min_date: datetime=None):
+        if not min_date:
+            min_date = arrow.utcnow().shift(days=-1)
         results = self.pipeline.run(
             {
-                "embedder": {"text": question},
-                "prompt_builder": {"question": question},
-                "retriever": {"filters": {"field": "meta.date", "operator": ">", "value": min_date }}
-            }, include_outputs_from=("retriever", "prompt_builder", "llm")
+                "prompt_builder": {"question": question, "documents": documents}
+            }
         )
-        return results
+        return results["llm"]["replies"][0]
     
 class TopicRetrievalPipeline:
     """Retrieve documents from a document score that belong to a specific topic.
@@ -247,12 +248,4 @@ Summary:"""
             },
             include_outputs_from=["prompt_builder"]
         )
-        return results
-
-
-
-if __name__ == "__main__":
-    news = get_news("https://theguardian.com/uk/rss")
-    newsrag = RAG(documents=news)
-
-    print(newsrag.run("What did Trump do this time?")["llm"]["replies"][0])
+        return results["llm"]["replies"][0]

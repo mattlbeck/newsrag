@@ -1,6 +1,9 @@
 import generator
 from haystack import Document
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder
+import rag
+import arrow
 
 def test_extract_citations():
     assert generator.transform_citations("[ARTICLE 1]") == ("[", [1], "]")
@@ -23,7 +26,7 @@ def test_stream_with_sources():
         continue
 
     assert content == "this is a statement [1].\n This is another statement [1,2]"
-    assert sources._sources == documents
+    assert sources._sources == [d for i, d in enumerate(documents) if i in (0, 10)]
 
 
 def test_joint_embedding():
@@ -32,4 +35,18 @@ def test_joint_embedding():
     p = JointDocumentIndexingPipeline(store, min_word_count=0)
     p.run([Document(content="hello world")])
     assert store.count_documents() == 3
+
+def test_qa_pipeline():
+    store = InMemoryDocumentStore()
+    embedder = SentenceTransformersDocumentEmbedder()
+    embedder.warm_up()
+    
+    metadata = {"date": arrow.utcnow().timestamp(), "type": "document"}
+    docs = [Document(content="blackbirds are red", meta=metadata), Document(content="robins are black", meta=metadata)]
+    store.write_documents(embedder.run(docs)["documents"])
+
+
+    p = rag.QAPipeline(store)
+    result = p.run("what colour is a blackbird?")
+    assert "red" in result["llm"]["replies"][0]
     

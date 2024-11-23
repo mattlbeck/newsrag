@@ -60,11 +60,11 @@ class Sources:
             yield f"{i+1}. {title} - [{vendor}]({link})"
 
 
-def stream_sourced_output(stream, documents):
+def stream_sourced_output(stream, sources: Sources, documents):
     history = ""
-    sources = Sources()
     
     ref = ""
+    print(documents)
     for new_token in stream:
         if "[" in new_token or ref:
             ref += new_token
