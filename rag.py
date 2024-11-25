@@ -3,14 +3,12 @@ from haystack import Pipeline, Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.components.writers.document_writer import DocumentWriter
 from haystack.components.rankers import MetaFieldRanker
-from haystack.utils import Secret
-from haystack.document_stores.in_memory import InMemoryDocumentStore
+from topics import JointEmbedderMixin
+
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever, InMemoryEmbeddingRetriever
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
-from haystack_integrations.components.generators.ollama import OllamaGenerator
-from haystack.components.builders.answer_builder import AnswerBuilder
-from haystack.components.builders.prompt_builder import PromptBuilder
-from functools import cached_property
+from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
+
 import arrow
 from datetime import datetime
 from multiprocessing.pool import ThreadPool
@@ -18,16 +16,9 @@ from topics import SentenceTransformersJointEmbedder, TopicModel
 from haystack.components.routers import MetadataRouter
 
 import generator
-
 from haystack.components.retrievers import FilterRetriever
-from haystack_integrations.document_stores.chroma import ChromaDocumentStore
-from haystack_integrations.components.retrievers.chroma import ChromaEmbeddingRetriever
+from haystack.dataclasses import ChatMessage
 from haystack import Document
-
-
-def get_document_store():
-    document_store = InMemoryDocumentStore()
-    return document_store
 
 
 class StreamingGeneratorMixin:
@@ -58,7 +49,7 @@ class JointDocumentIndexingPipeline:
     """
     Jointly index documents along with the document vocabulary
     """
-    def __init__(self, document_store, min_word_count=3):
+    def __init__(self, document_store, joint_embedder: JointEmbedderMixin, min_word_count=3):
         self._store = document_store
         self.embedder = SentenceTransformersJointEmbedder(min_word_count=min_word_count)
         self.writer = DocumentWriter(document_store=document_store)
@@ -125,18 +116,21 @@ Keywords: {{ topic_words|join(', ') }}
 Topic: 
 """
 
-    def __init__(self, max_words=10):
+    def __init__(self, generator, max_words=10):
         self.max_words=max_words
 
-        self.prompt = PromptBuilder(self.prompt_template)
-        self.llm = OllamaGenerator(model="llama3.2")
+        self.prompt = ChatPromptBuilder([ChatMessage.from_user(self.prompt_template)])
+        self.llm = generator
         self.pipeline = Pipeline()
         self.pipeline.add_component("prompt", self.prompt)
         self.pipeline.add_component("llm", self.llm)
         self.pipeline.connect("prompt", "llm")
 
-    def run(self, topic_words: list[str]):
-        return self.pipeline.run({ "prompt": {"topic_words": topic_words}})["llm"]["replies"][0]
+    def run(self, topic_words: list[str], debug=False):
+        result = self.pipeline.run({ "prompt": {"topic_words": topic_words}}, include_outputs_from=["prompt"])
+        if debug:
+            return result
+        return result["llm"]["replies"][0].content
     
 
 class QARetrievalPipeline:
@@ -177,10 +171,10 @@ Question: {{ question }}
 Answer
 """
 
-    def __init__(self, streaming_callback=None):
+    def __init__(self, generator):
 
-        self.prompt_builder = PromptBuilder(template=self.prompt_template)
-        self.llm = OllamaGenerator(model="llama3.2", streaming_callback=streaming_callback)
+        self.prompt_builder = ChatPromptBuilder(template=[ChatMessage.from_user(self.prompt_template)])
+        self.llm = generator
         
         self.pipeline = Pipeline()
         self.pipeline.add_component("prompt_builder", self.prompt_builder)
@@ -196,7 +190,7 @@ Answer
                 "prompt_builder": {"question": question, "documents": documents}
             }
         )
-        return results["llm"]["replies"][0]
+        return results["llm"]["replies"][0].content
     
 class TopicRetrievalPipeline:
     """Retrieve documents from a document score that belong to a specific topic.
@@ -232,14 +226,14 @@ ARTICLE {{ loop.index }}: {{ doc.content }}
 {% endfor %}
 
 Summary:"""
-    def __init__(self):
-        self.prompt_builder = PromptBuilder(template=self.prompt_template)
-        self.llm = OllamaGenerator(model="llama3.2", generation_kwargs={"num_ctx": 4096})
+    def __init__(self, generator):
+        self.prompt_builder = ChatPromptBuilder(template=[ChatMessage.from_user(self.prompt_template)])
+        self.llm = generator
 
         self.pipeline = Pipeline()
         self.pipeline.add_component("prompt_builder", self.prompt_builder)
         self.pipeline.add_component("llm", self.llm)
-        self.pipeline.connect("prompt_builder.prompt", "llm")
+        self.pipeline.connect("prompt_builder", "llm")
     
     def run(self, documents: list[Document]):
         results = self.pipeline.run(
@@ -248,4 +242,11 @@ Summary:"""
             },
             include_outputs_from=["prompt_builder"]
         )
-        return results["llm"]["replies"][0]
+        return results["llm"]["replies"][0].content
+
+class ArticleSegmentRetrievalPipeline:
+    """
+    Given a query, retrieve articled that may contain info on
+    the query based on headlines, then download the articles and rank
+    the segments, returning the top k segments to use in answer generation
+    """

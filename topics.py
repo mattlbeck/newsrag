@@ -1,14 +1,14 @@
 from top2vec import Top2Vec
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from haystack import component
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder, HuggingFaceAPIDocumentEmbedder
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack import Document
 import numpy as np
 from typing import List
     
 @component
-class JointEmbeddingMixin:
+class JointEmbedderMixin:
     """Jointly embed documents along with individual words to form a vocabulary.
     
     The result is a set of documents that correspond to the embedded documents and additionally
@@ -17,18 +17,18 @@ class JointEmbeddingMixin:
 
     def __init__(self, *args, min_word_count=3, **kwargs): 
         self.min_word_count=min_word_count
-        super(JointEmbeddingMixin, self).__init__(*args, **kwargs)
+        super(JointEmbedderMixin, self).__init__(*args, **kwargs)
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]):
-        document_embeddings = super(JointEmbeddingMixin, self).run(documents=documents)["documents"]
+        document_embeddings = super(JointEmbedderMixin, self).run(documents=documents)["documents"]
 
         from top2vec.top2vec import Top2Vec, default_tokenizer
         tokenized_corpus = [default_tokenizer(doc.content) for doc in documents]
         vocab = Top2Vec.get_label_vocabulary(tokenized_corpus, min_count=self.min_word_count, ngram_vocab=False, ngram_vocab_args=None)
         vocab_docs = [Document(content=v) for v in vocab]
 
-        word_embeddings = super(JointEmbeddingMixin, self).run(documents=vocab_docs)["documents"]
+        word_embeddings = super(JointEmbedderMixin, self).run(documents=vocab_docs)["documents"]
         all_documents = []
         for doc in document_embeddings:
             doc.meta["type"] = "document"
@@ -40,9 +40,13 @@ class JointEmbeddingMixin:
         return {"documents": all_documents}
     
 
-class SentenceTransformersJointEmbedder(JointEmbeddingMixin, SentenceTransformersDocumentEmbedder):
+class SentenceTransformersJointEmbedder(JointEmbedderMixin, SentenceTransformersDocumentEmbedder):
     """Uses a sentence transformer as an embedder but additonally embeds a vocabulary of words as
     another set of documents."""
+
+class HuggingfaceAPIJointEmbedder(JointEmbedderMixin, HuggingFaceAPIDocumentEmbedder):
+    """Uses the huggingface API the embedder but additionally embeds a vocabulary of words as another
+    set of documents"""
         
 @component        
 class TopicModel(Top2Vec):

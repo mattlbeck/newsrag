@@ -24,7 +24,13 @@ class StreamingText:
         self._done = False
 
     def __call__(self, text_chunk):
-        if text_chunk.meta["done"]:
+        
+        # stop code from ollama
+        if "done" in text_chunk.meta and text_chunk.meta["done"]:
+            self._done = True
+
+        # stop code from huggingface API
+        if "finish_reason" in text_chunk.meta:
             self._done = True
         self._text.put(text_chunk.content)
 
@@ -64,7 +70,6 @@ def stream_sourced_output(stream, sources: Sources, documents):
     history = ""
     
     ref = ""
-    print(documents)
     for new_token in stream:
         if "[" in new_token or ref:
             ref += new_token

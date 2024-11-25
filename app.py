@@ -1,23 +1,18 @@
 import gradio as gr
-from generator import Sources, StreamingText
-from rag import RAGSummariser, get_document_store, JointDocumentIndexingPipeline, TopicModelPipeline, DescribeTopicPipeline, TopicRetrievalPipeline, QAGeneratorPipeline, QARetrievalPipeline
+from generator import Sources
+from rag import RAGSummariser, JointDocumentIndexingPipeline, TopicModelPipeline, DescribeTopicPipeline, TopicRetrievalPipeline, QAGeneratorPipeline, QARetrievalPipeline
 import feeds
 import arrow
+from config import AppConfig
+
+config = AppConfig()
+
 
 def get_bibliography(sources: Sources):
     source_list = []
     for i, source in enumerate(sources._sources):
         source_list.append(f"{i+1}. {source.meta['title']} - [{source.meta['vendor']}]({source.meta['link']})")
     return "\n".join(source_list)
-
-def get_bibliography_table(sources: Sources):
-    rows = []
-    for i, source in enumerate(sources._sources):
-        row = [str(i+1), source.meta["title"], source.meta["vendor"], f"[view source]({source.meta['link']})"]
-        row_string = "|".join(row)
-        rows.append("|"+row_string+"|")
-
-    return "\n|-|-|-|-|\n".join(rows)
 
 
 with gr.Blocks() as demo:
@@ -37,7 +32,7 @@ with gr.Blocks() as demo:
         result = topics.run(min_date=arrow.utcnow().shift(days=-1))
 
         # Describe each topic with a human readable title
-        topic_describer = DescribeTopicPipeline()
+        topic_describer = DescribeTopicPipeline(generator=config.get_generator_model())
         topic_descriptions = [topic_describer.run(topic) for topic in result["topic_model"]["topic_words"]]
         
         return gr.update(choices=topic_descriptions, value=None)
@@ -48,7 +43,7 @@ with gr.Blocks() as demo:
         
         This clears the chat history and starts again with a new news summary"""
         documents = TopicRetrievalPipeline(document_store=document_store, document_count=30).run(topic_id=topic_num)
-        newsrag = RAGSummariser()
+        newsrag = RAGSummariser(generator=config.get_generator_model())
 
         async_result = newsrag.run_async(documents=documents)
 
@@ -77,7 +72,7 @@ with gr.Blocks() as demo:
         question = history[-1]["content"]
         documents = retriever.run(question)
         print("retrieved", documents, "documents")
-        qa = QAGeneratorPipeline()
+        qa = QAGeneratorPipeline(generator=config.get_generator_model())
         
         async_result = qa.run_async(question=question, documents=documents)
 
@@ -93,8 +88,10 @@ with gr.Blocks() as demo:
     ########
     # App UI
     ########
+    # keep persistent document store and sources list
     sources = gr.State(value=Sources())
-    document_store = gr.State(value=get_document_store())
+    document_store = gr.State(value=config.get_document_store())
+
     # arrange UI elements
     with gr.Row():
         title = gr.Markdown("# newsrag")
