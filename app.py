@@ -5,6 +5,13 @@ import feeds
 import arrow
 from config import AppConfig
 
+description = """
+# newsrag
+**Summarisation of daily news topics**.
+ - top2vec discovers topics from the last day's news headlines across a diverse number of news vendors
+ - An LLM summarises each topic, building a list of citations as the response is streamed
+ - Q&A allows you to ask questions against the database of news headlines in a classic RAG paradigm
+"""
 config = AppConfig()
 
 
@@ -94,7 +101,7 @@ with gr.Blocks() as demo:
 
     # arrange UI elements
     with gr.Row():
-        title = gr.Markdown("# newsrag")
+        title = gr.Markdown(description)
     with gr.Row():
         with gr.Column():
             topic_selection = gr.Dropdown(label="Select a topic", type="index")
