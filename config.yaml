@@ -1,12 +1,14 @@
 # platform on which model inference is made
-# ollama for local inference using the ollama app
-# hg_api for huggingface API inference
-inference_platform: hg_api 
+# `ollama` for local inference using the ollama app
+# `hg_api` for huggingface serverless inference API
+inference_platform: ollama 
 
 # model ID used for the generator
-ollama_generator_model: llama3.2
-hg_generator_model: meta-llama/Llama-3.2-1B-Instruct
+ollama_generator_model: llama3.2:3B
+hg_generator_model: meta-llama/Llama-3.2-3B-Instruct
 
 # model used for embeddings
-embedder_platform: hg_api
+# `local` for using the SentenceTransformers package and a local model
+# `hg_api` to use the huggingface serverless inference API
+embedder_platform: local
 embedder_model: sentence-transformers/all-mpnet-base-v2

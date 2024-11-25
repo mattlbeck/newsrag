@@ -24,7 +24,7 @@ with gr.Blocks() as demo:
         print(f"{len(news)} news articles")
 
         # Use the indexing pipeline to embed and write these documents to the chosen document store
-        indexing = JointDocumentIndexingPipeline(document_store=document_store, min_word_count=0)
+        indexing = JointDocumentIndexingPipeline(document_store=document_store, joint_embedder=config.get_joint_document_embedder(min_word_count=3), min_word_count=0)
         indexing.run(news)
 
         # the topic pipeline discovers topics within the embedded documents and labels them with the embedded word vocabulary
@@ -66,12 +66,12 @@ with gr.Blocks() as demo:
         return history + [{"role": "user", "content": user_message}]
     
     def qa(document_store, sources, history: list):
-        retriever = QARetrievalPipeline(document_store=document_store)
+        retriever = QARetrievalPipeline(document_store=document_store, text_embedder=config.get_text_embedder())
         
         # TODO: additional conversation context
         question = history[-1]["content"]
         documents = retriever.run(question)
-        print("retrieved", documents, "documents")
+        print("retrieved", len(documents), "documents")
         qa = QAGeneratorPipeline(generator=config.get_generator_model())
         
         async_result = qa.run_async(question=question, documents=documents)

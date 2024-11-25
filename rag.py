@@ -139,10 +139,10 @@ class QARetrievalPipeline:
     A ranker will additionally order the topics and limit the number of documents returned.
     """
 
-    def __init__(self, document_store, document_count=10):
+    def __init__(self, document_store, text_embedder, document_count=10):
         self.document_store = document_store
         self.retriever = InMemoryEmbeddingRetriever(document_store, top_k=document_count)
-        self.embedder = SentenceTransformersTextEmbedder()
+        self.embedder = text_embedder
 
         self.pipeline = Pipeline()
         self.pipeline.add_component("embedder", self.embedder)
@@ -235,13 +235,15 @@ Summary:"""
         self.pipeline.add_component("llm", self.llm)
         self.pipeline.connect("prompt_builder", "llm")
     
-    def run(self, documents: list[Document]):
+    def run(self, documents: list[Document], debug=False):
         results = self.pipeline.run(
             {
                 "prompt_builder": {"documents": documents}
             },
             include_outputs_from=["prompt_builder"]
         )
+        if debug:
+            return results
         return results["llm"]["replies"][0].content
 
 class ArticleSegmentRetrievalPipeline:

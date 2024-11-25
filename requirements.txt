@@ -1,0 +1,11 @@
+haystack-ai
+ollama-haystack
+sentence-transformers
+torch 
+newspaper3k
+lxml_html_clean
+feedparser
+arrow
+top2vec
+gradio>=5.5.0
+pytest

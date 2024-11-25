@@ -1,16 +1,19 @@
 # NewsRAG
 
-## Prerequisites
-
- - ollama with llama3.2 downloaded
+This is a gradio-based demonstration of a haystack-based RAG app that ingests RSS news feeds and then discovers topics, summarises, and allows free-form QA on the article headlines.
 
 ## Get Started
 
-Install with conda
+These instructions should get you setup with the app on a local machine.
+
+Prerequisites:
+
+ - ollama with llama3.2:3B downloaded (or your preferred instruction-tuned LLM)
+
+Install requirements into your favourite virtual environment
 
 ```
-conda env create -f environment.yaml
-conda activate newsrag
+pip install -r requirements.txt
 ```
 
 Run the Gradio app
