@@ -1,6 +1,7 @@
 import feedparser
 from haystack import Document
 import arrow
+import re
 
 from io import StringIO
 from html.parser import HTMLParser
@@ -97,6 +98,7 @@ class TheGuardian(Feed):
      
     def feed2doc(self, item):
         content = strip_tags(item["summary"]).rstrip("Continue reading...")
+        item["title"] = re.sub(r"\|(.+)$", "", item["title"]) # remove author attributions from the end of titles
         return self._feed2doc(item, item["title"])
 
 
