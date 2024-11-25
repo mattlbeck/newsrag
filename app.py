@@ -1,6 +1,6 @@
 import gradio as gr
 from generator import Sources
-from rag import RAGSummariser, JointDocumentIndexingPipeline, TopicModelPipeline, DescribeTopicPipeline, TopicRetrievalPipeline, QAGeneratorPipeline, QARetrievalPipeline
+from pipelines import SummarisationPipeline, JointDocumentIndexingPipeline, TopicModelPipeline, DescribeTopicPipeline, TopicRetrievalPipeline, QAGeneratorPipeline, QARetrievalPipeline
 import feeds
 import arrow
 from config import AppConfig
@@ -43,7 +43,7 @@ with gr.Blocks() as demo:
         
         This clears the chat history and starts again with a new news summary"""
         documents = TopicRetrievalPipeline(document_store=document_store, document_count=30).run(topic_id=topic_num)
-        newsrag = RAGSummariser(generator=config.get_generator_model())
+        newsrag = SummarisationPipeline(generator=config.get_generator_model())
 
         async_result = newsrag.run_async(documents=documents)
 
