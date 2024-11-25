@@ -1,14 +1,14 @@
 ---
-title: Test
+title: newsrag
 emoji: 👀
-colorFrom: green
-colorTo: purple
+colorFrom: black
+colorTo: white
 sdk: gradio
 sdk_version: 5.6.0
 app_file: app.py
 pinned: false
-license: mit
-short_description: test
+license: Apache 2.0
+short_description: A haystack-based RAG app that ingests RSS news feeds and then discovers topics, summarises, and allows free-form QA on the article headlines.
 ---
 # NewsRAG
 
