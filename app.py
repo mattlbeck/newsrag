@@ -67,10 +67,10 @@ with gr.Blocks() as demo:
         # history.append({"role": "assistant", "content": pipeline_result["llm"]["replies"][0]})
         yield history,  get_bibliography(sources)
 
-    def user(user_message, history:list):    
+    def user_query(user_message, history:list):    
         if history is None:
             history = []
-        return history + [{"role": "user", "content": user_message}]
+        return history + [{"role": "user", "content": user_message}], gr.update(value="")
     
     def qa(document_store, sources, history: list):
         retriever = QARetrievalPipeline(document_store=document_store, text_embedder=config.get_text_embedder())
@@ -101,17 +101,18 @@ with gr.Blocks() as demo:
 
     # arrange UI elements
     with gr.Row():
-        title = gr.Markdown(description)
-    with gr.Row():
         with gr.Column():
+            title = gr.Markdown(description)
             topic_selection = gr.Dropdown(label="Select a topic", type="index")
-            chatbot = gr.Chatbot(type="messages", height=600)
             qa_input = gr.Textbox(label="Ask a Question:")
+            bibliography = gr.Markdown(label="Bibliography", container=True, height=400)
+            
         with gr.Column():
-            bibliography = gr.Markdown(label="Bibliography", container=True, height=800)
+            chatbot = gr.Chatbot(type="messages", height=800)
+            
     
     # set actions and triggers
     demo.load(topics, inputs=[document_store], outputs=[topic_selection])
     topic_selection.select(summarise, inputs=[document_store, sources, topic_selection], outputs=[chatbot, bibliography])
-    qa_input.submit(user, inputs=[qa_input, chatbot], outputs=[chatbot]).then(qa, inputs=[document_store, sources, chatbot], outputs=[chatbot, bibliography])
+    qa_input.submit(user_query, inputs=[qa_input, chatbot], outputs=[chatbot, qa_input]).then(qa, inputs=[document_store, sources, chatbot], outputs=[chatbot, bibliography])
 demo.launch()
