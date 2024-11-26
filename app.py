@@ -30,6 +30,9 @@ def get_cached_news():
     Loads and returns cached news from file if the file exists.
     The file is determined by an environment variable
     """
+    env_var = "APP_DOCUMENT_CACHE"
+    if env_var not in os.environ:
+        return None
     cache_file = Path(os.environ["APP_DOCUMENT_CACHE"])
     if cache_file.exists():
         print(f"Loading news from cache {cache_file}")

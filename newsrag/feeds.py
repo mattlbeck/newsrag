@@ -1,3 +1,4 @@
+from collections import defaultdict
 import inspect
 import re
 import sys
@@ -56,7 +57,7 @@ class Feed:
         default_meta.update(meta)
         return Document(content=content, meta=default_meta)
     
-    def parse(self, item):
+    def parse(self, item: dict) -> tuple[str, dict]:
         """
         overridable method that must return a tuple of
         (content, meta: dict) given the item, which is the parsed
@@ -64,21 +65,62 @@ class Feed:
         """
         return item["title"], {}
 
-    def get_documents(self):
-        docs = []
-        if self.subfeeds:
-            for name, modifier in self.subfeeds.items():
-                url = self._url.format(modifier)
-                feed = parse_feed(url)
-                for entry in feed:
-                    content, meta = self.parse(entry)
-                    docs.append(self._feed2doc(entry, content, subfeed=name, feed_url=url, **meta))
+    def get_documents(self) -> list[Document]:
+        """
+        Download and parse all documents for all subfeeds.
+
+        If `self.subfeeds` is none, it will assume the only feed is
+        defined by the base `self._url`. In that case the subfeed will
+        be named "main".
+        """
+        
+        if not self.subfeeds:
+            return self.get_subfeed()
+        
+        # Parse all subfeeds and deduplicate.
+        # This uses the content as the ID for the document because the document
+        # ID is affected by subfeed information.
+        unique_docs = defaultdict(list)
+        for name in self.subfeeds.keys():
+            for doc in self.get_subfeed(name):
+                unique_docs[doc.content].append(doc)
+        
+        deduplicated_documents = []
+        # convert subfeed meta to list of subfeeds
+        for same_docs in unique_docs.values():
+            # use the 0th doc as the candidate and copy across the subfeed info from the others
+            doc = same_docs[0]
+            doc.meta["subfeeds"] = [d.meta["subfeeds"] for d in same_docs]
+            doc.meta["feed_urls"] = [d.meta["feed_urls"] for d in same_docs]
+            deduplicated_documents.append(doc)
+        return deduplicated_documents
+
+        
+    
+    def get_subfeed(self, name=None) -> list[Document]:
+        """
+        Download and parse all entries of a subfeed.
+        
+        Args:
+        name: subfeed name. Must be in `self.subfeeds`. If None, assumes there is only one subfeed given by the base URL
+        """
+        if name:
+            try:
+                modifier = self.subfeeds[name]
+            except KeyError:
+                raise ValueError(f"No such subfeed {name} in feed {self.name}")
         else:
-            feed = parse_feed(self._url)
-            for entry in feed:
-                content, meta = self.parse(entry)
-                docs.append(self._feed2doc(entry, content, **meta))
+            name = "main"
+            modifier = ""
+
+        url = self._url.format(modifier)
+        feed = parse_feed(url)
+        docs = []
+        for entry in feed:
+            content, meta = self.parse(entry)
+            docs.append(self._feed2doc(entry, content, subfeeds=name, feed_urls=url, **meta))
         return docs
+
 
         
     
