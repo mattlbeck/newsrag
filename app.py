@@ -48,7 +48,7 @@ with gr.Blocks() as demo:
         news = get_cached_news()
         if not news: 
             print("Downloading fresh news")
-            news = feeds.download_feeds((feeds.TheGuardian, feeds.AssociatedPress, feeds.BBC, feeds.ABC, feeds.CNBC, feeds.FoxNews, feeds.EuroNews, feeds.TechCrunch, feeds.Wired, feeds.ArsTechnica))
+            news = feeds.download_feeds()
             print(f"{len(news)} news articles")
 
         # Use the indexing pipeline to embed and write these documents to the chosen document store
