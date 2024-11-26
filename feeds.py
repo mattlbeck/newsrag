@@ -30,6 +30,9 @@ def get_date(date_string: str):
     except arrow.parser.ParserMatchError:
         return arrow.get(date_string, "ddd, DD MMM YYYY HH:mm:ss Z").timestamp()
 
+def parse_feed(url):
+    d = feedparser.parse(url)
+    return d["entries"]
 
 class Feed:
     """
@@ -38,6 +41,7 @@ class Feed:
     """
     name = None
     _url = None
+    subfeeds = None
 
     def _feed2doc(self, item, content, **meta):
         default_meta = {
@@ -53,11 +57,17 @@ class Feed:
         return self._feed2doc(item, item["title"])
 
     def get_documents(self):
-        return [self.feed2doc(item) for item in self.parse()]
+        docs = []
+        if self.subfeeds:
+            for name, modifier in self.subfeeds:
+                url = self._url.format(modifier)
+                feed = self.parse_feed(url)
+                docs += [self.feed2doc(item, subfeed=name, feed_url=url) for item in feed]
+        else:
+            feed = self.parse_feed(self._url)
+            return [self.feed2doc(item, subfeed="main", feed_url=self._url) for item in feed]
 
-    def parse(self):
-        d = feedparser.parse(self._url)
-        return d["entries"]
+        
     
 # Inheriting feeds are translated to documents with whatever preprocessing is needed
 # Various fields are added to the main content depending on how the vendor uses the feed
@@ -104,7 +114,19 @@ class TheGuardian(Feed):
 
 class BBC(Feed):
     name = "BBC"
-    _url = "https://feeds.bbci.co.uk/news/rss.xml"
+    _url = "https://feeds.bbci.co.uk/news/{}rss.xml"
+    subfeeds = {
+        "Top Stories": "",
+        "World": "world",
+        "UK": "uk",
+        "Business": "business",
+        "Politics": "politics",
+        "Health": "health",
+        "Education & Family": "education",
+        "Science & Environment": "science_and_environment",
+        "Technology": "technology",
+        "Entertainment and Arts": "entertainment_and_arts"
+    }
 
     def feed2doc(self, item):
         """BBC summaries require the title for context"""
