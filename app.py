@@ -16,7 +16,7 @@ description = """
  - An LLM summarises each topic, building a list of citations as the response is streamed
  - Q&A allows you to ask questions against the database of news headlines in a classic RAG paradigm
 """
-config = AppConfig()
+
 
 
 def get_bibliography(sources: Sources):
@@ -44,8 +44,9 @@ def get_cached_news():
 
 
 with gr.Blocks() as demo:
+    config = AppConfig()
 
-    def topics(document_store):
+    def get_topics(document_store):
         """Downloads news feeds and indexes their content in to the central document store"""
         # download news from various feeds, formatted as haystack Document objects complete with some metadata
         news = get_cached_news()
@@ -58,6 +59,10 @@ with gr.Blocks() as demo:
         indexing = JointDocumentIndexingPipeline(document_store=document_store, joint_embedder=config.get_joint_document_embedder(min_word_count=3), min_word_count=0)
         indexing.run(news)
 
+        return model_topics(document_store)
+    
+    def model_topics(document_store):
+        """Models the topics, assuming they have already been indexed in the store"""
         # the topic pipeline discovers topics within the embedded documents and labels them with the embedded word vocabulary
         topics = TopicModelPipeline(document_store=document_store)
         result = topics.run(min_date=arrow.utcnow().shift(days=-1))
@@ -127,7 +132,9 @@ with gr.Blocks() as demo:
     with gr.Row():
         with gr.Column():
             title = gr.Markdown(description)
-            topic_selection = gr.Dropdown(label="Select a topic", type="index")
+            with gr.Row(variant="compact"):
+                topic_selection = gr.Dropdown(label="Select a topic", type="index")
+                refresh_topics = gr.Button(value="Refresh")
             qa_input = gr.Textbox(label="Ask a Question:")
             bibliography = gr.Markdown(label="Bibliography", container=True, height=400)
             
@@ -136,7 +143,8 @@ with gr.Blocks() as demo:
             
     
     # set actions and triggers
-    demo.load(topics, inputs=[document_store], outputs=[topic_selection])
+    demo.load(get_topics, inputs=[document_store], outputs=[topic_selection])
+    refresh_topics.click(model_topics, inputs=[document_store], outputs=[topic_selection])
     topic_selection.select(summarise, inputs=[document_store, sources, topic_selection], outputs=[chatbot, bibliography])
     qa_input.submit(user_query, inputs=[qa_input, chatbot], outputs=[chatbot, qa_input]).then(qa, inputs=[document_store, sources, chatbot], outputs=[chatbot, bibliography])
 demo.launch()

@@ -1,5 +1,6 @@
 model_topics:
   days: 1
+  reps: 10
   umap:
     n_neighbors: 50
     n_components: 5
