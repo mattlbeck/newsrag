@@ -1,9 +1,9 @@
 import gradio as gr
-from generator import Sources
-from pipelines import SummarisationPipeline, JointDocumentIndexingPipeline, TopicModelPipeline, DescribeTopicPipeline, TopicRetrievalPipeline, QAGeneratorPipeline, QARetrievalPipeline
-import feeds
+from newsrag.generator import Sources
+from newsrag.pipelines import SummarisationPipeline, JointDocumentIndexingPipeline, TopicModelPipeline, DescribeTopicPipeline, TopicRetrievalPipeline, QAGeneratorPipeline, QARetrievalPipeline
+import newsrag.feeds as feeds
 import arrow
-from config import AppConfig
+from newsrag.config import AppConfig
 
 description = """
 # newsrag

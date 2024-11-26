@@ -1,12 +1,14 @@
-from top2vec import Top2Vec
-from haystack_integrations.components.generators.ollama import OllamaGenerator
-from haystack import component
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, HuggingFaceAPIDocumentEmbedder
-from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack import Document
-import numpy as np
 from typing import List
-    
+
+import numpy as np
+from haystack import Document, component
+from haystack.components.embedders import (
+    HuggingFaceAPIDocumentEmbedder, SentenceTransformersDocumentEmbedder)
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack_integrations.components.generators.ollama import OllamaGenerator
+from top2vec import Top2Vec
+
+
 @component
 class JointEmbedderMixin:
     """Jointly embed documents along with individual words to form a vocabulary.

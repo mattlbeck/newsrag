@@ -1,24 +1,20 @@
-import os
-from haystack import Pipeline, Document
-from haystack.document_stores.types import DuplicatePolicy
-from haystack.components.writers.document_writer import DocumentWriter
-from haystack.components.rankers import MetaFieldRanker
-from topics import JointEmbedderMixin
-
-from haystack.components.retrievers.in_memory import InMemoryBM25Retriever, InMemoryEmbeddingRetriever
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
-from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
-
-import arrow
 from datetime import datetime
 from multiprocessing.pool import ThreadPool
-from topics import SentenceTransformersJointEmbedder, TopicModel
-from haystack.components.routers import MetadataRouter
 
+import arrow
 import generator
+from haystack import Document, Pipeline
+from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
+from haystack.components.rankers import MetaFieldRanker
 from haystack.components.retrievers import FilterRetriever
+from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+from haystack.components.routers import MetadataRouter
+from haystack.components.writers.document_writer import DocumentWriter
 from haystack.dataclasses import ChatMessage
-from haystack import Document
+from haystack.document_stores.types import DuplicatePolicy
+
+from newsrag.topics import (JointEmbedderMixin,
+                            SentenceTransformersJointEmbedder, TopicModel)
 
 
 class StreamingGeneratorMixin:

@@ -1,12 +1,16 @@
-import yaml
 import os
-from haystack.utils import Secret
-from haystack.dataclasses import ChatMessage
-from haystack.document_stores.in_memory import InMemoryDocumentStore
+
+import yaml
+from haystack.components.embedders import (HuggingFaceAPITextEmbedder,
+                                           SentenceTransformersTextEmbedder)
 from haystack.components.generators.chat import HuggingFaceAPIChatGenerator
-from haystack.components.embedders import HuggingFaceAPITextEmbedder, SentenceTransformersTextEmbedder
-from haystack_integrations.components.generators.ollama import OllamaChatGenerator
-from topics import HuggingfaceAPIJointEmbedder, SentenceTransformersJointEmbedder
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack.utils import Secret
+from haystack_integrations.components.generators.ollama import \
+    OllamaChatGenerator
+
+from newsrag.topics import (HuggingfaceAPIJointEmbedder,
+                            SentenceTransformersJointEmbedder)
 
 
 class AppConfig:

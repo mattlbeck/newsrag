@@ -1,6 +1,8 @@
-from queue import Queue
 import re
+from queue import Queue
+
 from haystack import Document
+
 
 def transform_citations(citation: str,) -> list[int]:
     cite_numbers = []
