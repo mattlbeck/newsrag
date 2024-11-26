@@ -53,19 +53,29 @@ class Feed:
         default_meta.update(meta)
         return Document(content=content, meta=default_meta)
     
-    def feed2doc(self, item):
-        return self._feed2doc(item, item["title"])
+    def parse(self, item):
+        """
+        overridable method that must return a tuple of
+        (content, meta: dict) given the item, which is the parsed
+        entry from an RSS feed.
+        """
+        return item["title"], {}
 
     def get_documents(self):
         docs = []
         if self.subfeeds:
-            for name, modifier in self.subfeeds:
+            for name, modifier in self.subfeeds.items():
                 url = self._url.format(modifier)
-                feed = self.parse_feed(url)
-                docs += [self.feed2doc(item, subfeed=name, feed_url=url) for item in feed]
+                feed = parse_feed(url)
+                for entry in feed:
+                    content, meta = self.parse(entry)
+                    docs.append(self._feed2doc(entry, content, subfeed=name, feed_url=url, **meta))
         else:
-            feed = self.parse_feed(self._url)
-            return [self.feed2doc(item, subfeed="main", feed_url=self._url) for item in feed]
+            feed = parse_feed(self._url)
+            for entry in feed:
+                content, meta = self.parse(entry)
+                docs.append(self._feed2doc(entry, content, **meta))
+        return docs
 
         
     
@@ -74,21 +84,31 @@ class Feed:
 class CNBC(Feed):
     name = "CNBC"
     _url = "https://www.cnbc.com/id/100727362/device/rss/rss.html"
+    subfeeds = {
+        "Top News": "100727362",
+        "U.S. News": "15837362",
+        "Asia News": "19832390",
+        "Europe News": "19794221",
+        "Business News": "10001147",
+        "Technology": "19854910",
+        "Health Care": "10000108"
+
+    }
 
 class ABC(Feed):
     name = "ABC"
     _url = "https://abcnews.go.com/abcnews/internationalheadlines"
 
-    def feed2doc(self, item):
-        return self._feed2doc(item, item["description"])
+    def parse(self, item):
+        return item["description"], {}
     
 class FoxNews(Feed):
     name = "Fox News"
     _url = "https://moxie.foxnews.com/google-publisher/latest.xml"
 
-    def feed2doc(self, item):
+    def parse(self, item):
         """Fox news has a 'content' field in which the whole article appears"""
-        return self._feed2doc(item, item["description"])
+        return item["description"], {}
 
 class TheCipherBrief(Feed):
     """This may not be an ideal feed - description is much of the article and titles are not very headline-y"""
@@ -98,81 +118,91 @@ class EuroNews(Feed):
     name = "Euro News"
     _url = "https://www.euronews.com/rss"
 
-    def feed2doc(self, item):
+    def parse(self, item):
         """Fox news has a 'content' field in which the whole article appears"""
-        return self._feed2doc(item, item["description"])
+        return item["description"], {}
     
 class TheGuardian(Feed):
     name = "The Guardian"
-    _url = "https://theguardian.com/uk/rss"
-     
-    def feed2doc(self, item):
+    _url = "https://theguardian.com/{}/rss"
+    subfeeds = {
+        "UK": "uk",
+        "World": "world",
+        "Business": "business",
+        "Environment": "environment",
+        "UK Politics": "politics",
+        "Tech": "technology",
+        "Society": "society",
+        "US Politics": "us-news/us-politics"
+    }
+      
+    def parse(self, item):
         content = strip_tags(item["summary"]).rstrip("Continue reading...")
         item["title"] = re.sub(r"\|(.+)$", "", item["title"]) # remove author attributions from the end of titles
-        return self._feed2doc(item, item["title"])
+        return item["title"], {}
 
 
 class BBC(Feed):
     name = "BBC"
-    _url = "https://feeds.bbci.co.uk/news/{}rss.xml"
-    subfeeds = {
+    _url = "https://feeds.bbci.co.uk/news{}/rss.xml"
+    subfeeds = {    
         "Top Stories": "",
-        "World": "world",
-        "UK": "uk",
-        "Business": "business",
-        "Politics": "politics",
-        "Health": "health",
-        "Education & Family": "education",
-        "Science & Environment": "science_and_environment",
-        "Technology": "technology",
-        "Entertainment and Arts": "entertainment_and_arts"
+        "World": "/world",
+        "UK": "/uk",
+        "Business": "/business",
+        "Politics": "/politics",
+        "Health": "/health",
+        "Education & Family": "/education",
+        "Science & Environment": "/science_and_environment",
+        "Technology": "/technology",
+        "Entertainment and Arts": "/entertainment_and_arts"
     }
 
-    def feed2doc(self, item):
+    def parse(self, item):
         """BBC summaries require the title for context"""
         content = strip_tags(item["summary"])
-        return self._feed2doc(item, "\n".join([item["title"], content]))
+        return "\n".join([item["title"], content]), {}
     
 class AssociatedPress(Feed):
     name = "The Associated Press"
     _url = "https://news.google.com/rss/search?q=when:24h+allinurl:apnews.com&hl=en-GB&gl=GB&ceid=GB:en"
-    def feed2doc(self, item):
+    def parse(self, item):
         """AP google news feeds have nothing in the summary"""
         title = item["title"].rstrip(" - The Associated Press")
-        return self._feed2doc(item, title, title=title)
+        return title, {"title": title}
     
 
 # tech
 class TechCrunch(Feed):
     name = "TechCrunch"
     _url = "https://techcrunch.com/feed/"
-    def feed2doc(self, item):
+    def parse(self, item):
         content = strip_tags(item["description"]).rstrip("© 2024 TechCrunch. All rights reserved. For personal use only.")
         content = item["title"] + " " + content
-        return self._feed2doc(item, content)
+        return content, {}
     
 class Wired(Feed):
     name = "Wired"
     _url = "https://www.wired.com/feed/rss"
-    def feed2doc(self, item):
-        return self._feed2doc(item, item["description"])
+    def parse(self, item):
+        return item["description"], {}
     
 class ArsTechnica(Feed):
     name = "Ars Technica"
     _url = "https://feeds.arstechnica.com/arstechnica/technology-lab"
-    def feed2doc(self, item):
+    def parse(self, item):
         content = strip_tags(item["description"])
         content = item["title"] + " " + content
-        return self._feed2doc(item, content)
+        return content, {}
 
 # Science
 class NewScientist(Feed):
     name = "New Scientist"
     _url = "https://www.newscientist.com/section/news/feed/"
-    def feed2doc(self, item):
+    def parse(self, item):
         content = strip_tags(item["description"])
         content = item["title"] + " " + content
-        return self._feed2doc(item, content)
+        return content, {}
 
 def download_feeds(feed_cls: list):
     unique_docs = {}
