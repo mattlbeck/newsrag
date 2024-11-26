@@ -1,10 +1,13 @@
+import inspect
+import re
+import sys
+from html.parser import HTMLParser
+from io import StringIO
+
+import arrow
 import feedparser
 from haystack import Document
-import arrow
-import re
 
-from io import StringIO
-from html.parser import HTMLParser
 
 class MLStripper(HTMLParser):
     def __init__(self):
@@ -204,7 +207,20 @@ class NewScientist(Feed):
         content = item["title"] + " " + content
         return content, {}
 
-def download_feeds(feed_cls: list):
+
+def download_feeds(feed_cls: list=None):
+    if not feed_cls:
+        # compile a list of all feeds defined in the module
+        feed_cls = []
+        for name, obj in inspect.getmembers(sys.modules[__name__], inspect.isclass):
+            try:
+                if obj == Feed:
+                    continue
+                if issubclass(obj, sys.modules[__name__].Feed):
+                    feed_cls.append(obj)
+            except AttributeError as e: 
+                continue
+        
     unique_docs = {}
     for feed in feed_cls:
         docs = feed().get_documents()

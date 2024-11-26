@@ -1,0 +1,25 @@
+stages:
+  download_feeds:
+    cmd: python exp/download_feeds.py
+    deps:
+      - exp/download_feeds.py
+    outs:
+      - data/documents.jsonl
+  index_documents:
+    cmd: python exp/index_documents.py
+    deps:
+      - exp/index_documents.py
+      - data/documents.jsonl
+    outs:
+      - data/document_store.json
+  model_topics:
+    cmd: python exp/model_topics.py
+    deps:
+      - exp/model_topics.py
+      - data/document_store.json
+    params:
+      - model_topics
+metrics:
+  - data/download_feeds.json
+  - data/index_documents.json
+  - data/model_topics.json

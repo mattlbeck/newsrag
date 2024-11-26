@@ -1,0 +1,8 @@
+model_topics:
+  days: 1
+  umap:
+    n_neighbors: 50
+    n_components: 5
+    metric: "euclidean"
+  hdbscan:
+    min_cluster_size: 15

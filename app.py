@@ -4,6 +4,10 @@ from newsrag.pipelines import SummarisationPipeline, JointDocumentIndexingPipeli
 import newsrag.feeds as feeds
 import arrow
 from newsrag.config import AppConfig
+from pathlib import Path
+import jsonlines
+from haystack import Document
+import os
 
 description = """
 # newsrag
@@ -21,14 +25,31 @@ def get_bibliography(sources: Sources):
         source_list.append(f"{i+1}. {source.meta['title']} - [{source.meta['vendor']}]({source.meta['link']})")
     return "\n".join(source_list)
 
+def get_cached_news():
+    """
+    Loads and returns cached news from file if the file exists.
+    The file is determined by an environment variable
+    """
+    cache_file = Path(os.environ["APP_DOCUMENT_CACHE"])
+    if cache_file.exists():
+        print(f"Loading news from cache {cache_file}")
+        news = []
+        with jsonlines.open(cache_file) as reader:
+            for doc in reader:
+                news.append(Document.from_dict(doc))
+        return news
+
 
 with gr.Blocks() as demo:
 
     def topics(document_store):
         """Downloads news feeds and indexes their content in to the central document store"""
         # download news from various feeds, formatted as haystack Document objects complete with some metadata
-        news = feeds.download_feeds((feeds.TheGuardian, feeds.AssociatedPress, feeds.BBC, feeds.ABC, feeds.CNBC, feeds.FoxNews, feeds.EuroNews, feeds.TechCrunch, feeds.Wired, feeds.ArsTechnica))
-        print(f"{len(news)} news articles")
+        news = get_cached_news()
+        if not news: 
+            print("Downloading fresh news")
+            news = feeds.download_feeds((feeds.TheGuardian, feeds.AssociatedPress, feeds.BBC, feeds.ABC, feeds.CNBC, feeds.FoxNews, feeds.EuroNews, feeds.TechCrunch, feeds.Wired, feeds.ArsTechnica))
+            print(f"{len(news)} news articles")
 
         # Use the indexing pipeline to embed and write these documents to the chosen document store
         indexing = JointDocumentIndexingPipeline(document_store=document_store, joint_embedder=config.get_joint_document_embedder(min_word_count=3), min_word_count=0)

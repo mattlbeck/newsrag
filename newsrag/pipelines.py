@@ -2,7 +2,7 @@ from datetime import datetime
 from multiprocessing.pool import ThreadPool
 
 import arrow
-import generator
+import newsrag.generator as generator
 from haystack import Document, Pipeline
 from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
 from haystack.components.rankers import MetaFieldRanker
@@ -66,11 +66,11 @@ class TopicModelPipeline:
     """
 
 
-    def __init__(self, document_store):
+    def __init__(self, document_store, **top2vec_args):
         self._store = document_store
         
         self.retriever = FilterRetriever(document_store)
-        self.topic_model = TopicModel()
+        self.topic_model = TopicModel(**top2vec_args)
 
         # the router splits out documents that are docs form those that are the vocabulary to pass
         # as separate inputs to the TopicModel

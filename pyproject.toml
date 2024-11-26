@@ -19,10 +19,16 @@ top2vec = "^1.0.36"
 gradio = "5.5.0"
 llvmlite = "^0.43.0"
 pytest-recording = "^0.13.2"
+scipy = "<1.13"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
 ipykernel = "^6.29.5"
+
+
+[tool.poetry.group.experiments.dependencies]
+dvc = "^3.57.0"
+jsonlines = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core"]
