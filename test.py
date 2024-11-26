@@ -2,7 +2,7 @@ import generator
 from haystack import Document
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
-import rag
+import pipelines
 import arrow
 
 def test_extract_citations():
@@ -31,7 +31,7 @@ def test_stream_with_sources():
 
 def test_joint_embedding():
     store = InMemoryDocumentStore()
-    from rag import JointDocumentIndexingPipeline, get_document_store
+    from pipelines import JointDocumentIndexingPipeline, get_document_store
     p = JointDocumentIndexingPipeline(store, min_word_count=0)
     p.run([Document(content="hello world")])
     assert store.count_documents() == 3
@@ -46,7 +46,7 @@ def test_qa_pipeline():
     store.write_documents(embedder.run(docs)["documents"])
 
 
-    p = rag.QAPipeline(store)
+    p = pipelines.QAPipeline(store)
     result = p.run("what colour is a blackbird?")
     assert "red" in result["llm"]["replies"][0]
     
