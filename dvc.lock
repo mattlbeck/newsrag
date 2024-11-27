@@ -10,15 +10,19 @@ stages:
     outs:
     - path: data/documents.jsonl
       hash: md5
-      md5: 0c6568e46382ab699962d1980e9d4b53
-      size: 730332
+      md5: 7ee92420cbd3291a8e4d6f5b22d8660d
+      size: 851657
+    - path: data/download_feeds.json
+      hash: md5
+      md5: 084e84d82d619b07ce4734865bb40b1b
+      size: 25
   index_documents:
     cmd: python exp/index_documents.py
     deps:
     - path: data/documents.jsonl
       hash: md5
-      md5: 0c6568e46382ab699962d1980e9d4b53
-      size: 730332
+      md5: 7ee92420cbd3291a8e4d6f5b22d8660d
+      size: 851657
     - path: exp/index_documents.py
       hash: md5
       md5: 2327c774a08e68df25bc341f8f54475f
@@ -26,15 +30,19 @@ stages:
     outs:
     - path: data/document_store.json
       hash: md5
-      md5: 28dac3da53782781fe198da402a5aec3
-      size: 38620912
+      md5: bb05d325246fc3f99c308e534fec63eb
+      size: 48201233
+    - path: data/index_documents.json
+      hash: md5
+      md5: 56d91907bb0a16e34ef9969aa9decb78
+      size: 50
   model_topics:
     cmd: python exp/model_topics.py
     deps:
     - path: data/document_store.json
       hash: md5
-      md5: 28dac3da53782781fe198da402a5aec3
-      size: 38620912
+      md5: bb05d325246fc3f99c308e534fec63eb
+      size: 48201233
     - path: exp/model_topics.py
       hash: md5
       md5: dae925697e60ff900453ca8b474c68a1
@@ -42,7 +50,7 @@ stages:
     params:
       params.yaml:
         model_topics:
-          days: 1
+          days: 2
           reps: 10
           umap:
             n_neighbors: 50
@@ -50,3 +58,8 @@ stages:
             metric: euclidean
           hdbscan:
             min_cluster_size: 15
+    outs:
+    - path: data/model_topics.json
+      hash: md5
+      md5: 5953425e26c60c9e4561be20370b3ce1
+      size: 202

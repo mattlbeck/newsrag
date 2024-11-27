@@ -5,6 +5,8 @@ stages:
       - exp/download_feeds.py
     outs:
       - data/documents.jsonl
+    metrics:
+      - data/download_feeds.json
   index_documents:
     cmd: python exp/index_documents.py
     deps:
@@ -12,6 +14,8 @@ stages:
       - data/documents.jsonl
     outs:
       - data/document_store.json
+    metrics:
+      - data/index_documents.json
   model_topics:
     cmd: python exp/model_topics.py
     deps:
@@ -19,7 +23,5 @@ stages:
       - data/document_store.json
     params:
       - model_topics
-metrics:
-  - data/download_feeds.json
-  - data/index_documents.json
-  - data/model_topics.json
+    metrics:
+      - data/model_topics.json
