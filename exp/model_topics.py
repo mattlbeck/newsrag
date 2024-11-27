@@ -30,7 +30,8 @@ def evaluate_topics(model_results):
     silhouette = silhouette_score(embeddings, labels=topic_ids)
     return {
             "total_topics": len(model_results["topic_words"]),
-            "silhouette_score": float(silhouette)
+            "silhouette_score": float(silhouette),
+            "total_documents": len(model_results["documents"])
         }
 
 if __name__ == "__main__":
@@ -55,6 +56,7 @@ if __name__ == "__main__":
         print(metrics)
         all_metrics["total_topics"].append(metrics["total_topics"])
         all_metrics["silhouette_score"].append(metrics["silhouette_score"])
+        all_metrics["total_documents"].append(metrics["total_documents"])
 
     def summary_stats(metric):
         return {
@@ -68,5 +70,6 @@ if __name__ == "__main__":
     with metrics_file.open("w") as fh:
         json.dump({
             "total_topics": summary_stats(all_metrics["total_topics"]),
-            "silhouette_score": summary_stats(all_metrics["silhouette_score"])
+            "silhouette_score": summary_stats(all_metrics["silhouette_score"]),
+            "total_documents": statistics.mean(all_metrics["total_documents"])
         }, fh)
