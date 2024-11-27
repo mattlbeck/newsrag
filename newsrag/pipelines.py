@@ -45,10 +45,10 @@ class JointDocumentIndexingPipeline:
     """
     Jointly index documents along with the document vocabulary
     """
-    def __init__(self, document_store, joint_embedder: JointEmbedderMixin, min_word_count=3):
+    def __init__(self, document_store, joint_embedder: JointEmbedderMixin):
         self._store = document_store
-        self.embedder = SentenceTransformersJointEmbedder(min_word_count=min_word_count)
-        self.writer = DocumentWriter(document_store=document_store)
+        self.embedder = joint_embedder
+        self.writer = DocumentWriter(document_store=document_store, policy=DuplicatePolicy.OVERWRITE)
         self.pipeline = Pipeline()
         self.pipeline.add_component("embedder", self.embedder)
         self.pipeline.add_component("writer", self.writer)

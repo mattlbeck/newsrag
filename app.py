@@ -46,7 +46,7 @@ def get_cached_news():
 with gr.Blocks() as demo:
     config = AppConfig()
 
-    def get_topics(document_store):
+    def get_topics(document_store, min_date):
         """Downloads news feeds and indexes their content in to the central document store"""
         # download news from various feeds, formatted as haystack Document objects complete with some metadata
         news = get_cached_news()
@@ -54,18 +54,21 @@ with gr.Blocks() as demo:
             print("Downloading fresh news")
             news = feeds.download_feeds()
             print(f"{len(news)} news articles")
+        
+        in_date_news = [doc for doc in news if doc.meta["timestamp"] >= min_date.timestamp()]
+        print(f"{len(in_date_news)} news articles after filtering by date")
 
         # Use the indexing pipeline to embed and write these documents to the chosen document store
-        indexing = JointDocumentIndexingPipeline(document_store=document_store, joint_embedder=config.get_joint_document_embedder(min_word_count=3), min_word_count=0)
-        indexing.run(news)
+        indexing = JointDocumentIndexingPipeline(document_store=document_store, joint_embedder=config.get_joint_document_embedder(min_word_count=3))
+        indexing.run(in_date_news)
 
-        return model_topics(document_store)
+        return model_topics(document_store, min_date)
     
-    def model_topics(document_store):
+    def model_topics(document_store, min_date):
         """Models the topics, assuming they have already been indexed in the store"""
         # the topic pipeline discovers topics within the embedded documents and labels them with the embedded word vocabulary
-        topics = TopicModelPipeline(document_store=document_store)
-        result = topics.run(min_date=arrow.utcnow().shift(days=-1))
+        topics = TopicModelPipeline(document_store=document_store, umap_args={"n_neighbors": 10})
+        result = topics.run(min_date=min_date)
 
         # Describe each topic with a human readable title
         topic_describer = DescribeTopicPipeline(generator=config.get_generator_model())
@@ -130,21 +133,42 @@ with gr.Blocks() as demo:
 
     # arrange UI elements
     with gr.Row():
+        with gr.Column(visible=False, min_width=200, scale=0) as sidebar:
+            
+            gr.DateTime.time_format = "%Y-%m-%d" # workaround for a gradio bug
+            min_date = gr.DateTime(arrow.utcnow().shift(days=-1).datetime, type="datetime", include_time=False, label="Oldest news:")
+
+            refresh_topics = gr.Button(value="Refresh topics")
+
         with gr.Column():
             title = gr.Markdown(description)
-            with gr.Row(variant="compact"):
-                topic_selection = gr.Dropdown(label="Select a topic", type="index")
-                refresh_topics = gr.Button(value="Refresh")
-            qa_input = gr.Textbox(label="Ask a Question:")
+            open_sidebar_btn = gr.Button("Show more options", scale=0)
+            close_sidebar_btn = gr.Button("Hide more options", visible=False, scale=0)
+            with gr.Tab("Select topic"):
+                topic_selection = gr.Dropdown(label="", type="index")
+            with gr.Tab("Ask a question"):
+                qa_input = gr.Textbox(label="")
+
+
+
             bibliography = gr.Markdown(label="Bibliography", container=True, height=400)
             
         with gr.Column():
             chatbot = gr.Chatbot(type="messages", height=800)
+
             
     
+    # sidebar show/hide logic
+    open_sidebar_btn.click(lambda: (gr.update(visible=False), gr.update(visible=True), gr.update(visible=True)
+    ), outputs=(open_sidebar_btn, close_sidebar_btn, sidebar))
+    close_sidebar_btn.click(lambda: (gr.update(visible=True), gr.update(visible=False), gr.update(visible=False)
+    ), outputs=(open_sidebar_btn, close_sidebar_btn, sidebar))
+    
     # set actions and triggers
-    demo.load(get_topics, inputs=[document_store], outputs=[topic_selection])
-    refresh_topics.click(model_topics, inputs=[document_store], outputs=[topic_selection])
+    demo.load(get_topics, inputs=[document_store, min_date], outputs=[topic_selection])
+    refresh_topics.click(model_topics, inputs=[document_store, min_date], outputs=[topic_selection])
     topic_selection.select(summarise, inputs=[document_store, sources, topic_selection], outputs=[chatbot, bibliography])
+    min_date.change(get_topics, inputs=[document_store, min_date], outputs=[topic_selection])
+
     qa_input.submit(user_query, inputs=[qa_input, chatbot], outputs=[chatbot, qa_input]).then(qa, inputs=[document_store, sources, chatbot], outputs=[chatbot, bibliography])
 demo.launch()
