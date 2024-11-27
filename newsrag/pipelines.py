@@ -99,7 +99,7 @@ class TopicModelPipeline:
             "retriever": {"filters": {
                           "operator": "OR",
                           "conditions": [
-                            {"field": "meta.date", "operator": ">", "value": min_date.timestamp() },
+                            {"field": "meta.timestamp", "operator": ">", "value": min_date.timestamp() },
                             {"field": "meta.type", "operator": "==", "value": "word"}
                           ]}}
         }, include_outputs_from="topic_model")

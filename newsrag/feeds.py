@@ -49,7 +49,8 @@ class Feed:
 
     def _feed2doc(self, item, content, **meta):
         default_meta = {
-                            "date": get_date(item["published"]),
+                            "timestamp": get_date(item["published"]),
+                            "published": item["published"],
                             "link": item["link"],
                             "title": item["title"],
                             "vendor": self.name
@@ -91,7 +92,6 @@ class Feed:
             # use the 0th doc as the candidate and copy across the subfeed info from the others
             doc = same_docs[0]
             doc.meta["subfeeds"] = [d.meta["subfeeds"] for d in same_docs]
-            doc.meta["feed_urls"] = [d.meta["feed_urls"] for d in same_docs]
             deduplicated_documents.append(doc)
         return deduplicated_documents
 
@@ -110,15 +110,17 @@ class Feed:
             except KeyError:
                 raise ValueError(f"No such subfeed {name} in feed {self.name}")
         else:
-            name = "main"
+            name = ["main"]
             modifier = ""
 
         url = self._url.format(modifier)
         feed = parse_feed(url)
+        if len(feed) == 0:
+            print(f"Warning: {url} has no entries.")
         docs = []
         for entry in feed:
             content, meta = self.parse(entry)
-            docs.append(self._feed2doc(entry, content, subfeeds=name, feed_urls=url, **meta))
+            docs.append(self._feed2doc(entry, content, subfeeds=name, **meta))
         return docs
 
 
@@ -142,29 +144,57 @@ class CNBC(Feed):
 
 class ABC(Feed):
     name = "ABC"
-    _url = "https://abcnews.go.com/abcnews/internationalheadlines"
+    _url = "https://abcnews.go.com/abcnews/{}"
+    subfeeds = {
+        "International Headlines": "internationalheadlines",
+        "Top Stories": "topstories",
+        "US Headlines": "usheadlines",
+        "Politics Headlines": "politicsheadlines",
+        "Business Headlines": "businessheadlines",
+        "Technology Headlines": "technologyheadlines",
+        "Health Headlines": "healthheadlines",
+        "Entertainment Headlines": "entertainmentheadlines",
+        "Travel Headlines": "travelheadlines",
+        "ESPN Sports": "sportsheadlines",
+    }
 
     def parse(self, item):
         return item["description"], {}
     
 class FoxNews(Feed):
     name = "Fox News"
-    _url = "https://moxie.foxnews.com/google-publisher/latest.xml"
+    _url = "https://moxie.foxnews.com/google-publisher/{}.xml"
+    subfeeds = {
+        "Latest Headlines": "latest",
+        "World": "world",
+        "Politics": "politics",
+        "Science": "science",
+        "Health": "health",
+        "Sports": "sports",
+        "Travel": "travel",
+        "Tech": "tech",
+        "Opinion": "opinion",
+    }
 
     def parse(self, item):
         """Fox news has a 'content' field in which the whole article appears"""
         return item["description"], {}
 
-class TheCipherBrief(Feed):
-    """This may not be an ideal feed - description is much of the article and titles are not very headline-y"""
-    _url = "https://www.thecipherbrief.com/feed"
-
 class EuroNews(Feed):
     name = "Euro News"
-    _url = "https://www.euronews.com/rss"
+    _url = "https://www.euronews.com/rss?name={}"
+    subfeeds = {
+        "Latest News": "news",
+        "No Comment": "nocomment",
+        "Voyage": "travel",
+        "My Europe": "my-europe",
+        "Sport": "sport",
+        "Culture": "culture",
+        "Next": "next",
+        "Green": "green"
+    }
 
     def parse(self, item):
-        """Fox news has a 'content' field in which the whole article appears"""
         return item["description"], {}
     
 class TheGuardian(Feed):
@@ -228,7 +258,17 @@ class TechCrunch(Feed):
     
 class Wired(Feed):
     name = "Wired"
-    _url = "https://www.wired.com/feed/rss"
+    _url = "https://www.wired.com/feed/{}/rss"
+    subfeeds = {
+        "Business": "category/business/latest",
+        "Artificial Intelligence": "tag/ai/latest",
+        "Culture": "category/culture/latest",
+        "Gear": "category/gear/latest",
+        "Ideas": "category/ideas/latest",
+        "Science": "category/science/latest",
+        "Security": "category/security/latest",
+        "Backchannel": "category/backchannel/latest"
+    }
     def parse(self, item):
         return item["description"], {}
     

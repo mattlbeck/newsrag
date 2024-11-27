@@ -41,7 +41,7 @@ def test_qa_pipeline():
     embedder = SentenceTransformersDocumentEmbedder()
     embedder.warm_up()
     
-    metadata = {"date": arrow.utcnow().timestamp(), "type": "document"}
+    metadata = {"timestamp": arrow.utcnow().timestamp(), "type": "document"}
     docs = [Document(content="blackbirds are red", meta=metadata), Document(content="robins are black", meta=metadata)]
     store.write_documents(embedder.run(docs)["documents"])
 
