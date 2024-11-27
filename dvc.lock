@@ -50,16 +50,20 @@ stages:
     params:
       params.yaml:
         model_topics:
-          days: 2
-          reps: 10
+          days: 1
+          reps: 31
           umap:
             n_neighbors: 50
+            min_dist: 0.1
             n_components: 5
             metric: euclidean
           hdbscan:
             min_cluster_size: 15
+            min_samples:
+            cluster_selection_epsilon: 0.0
+            alpha: 1.0
     outs:
     - path: data/model_topics.json
       hash: md5
-      md5: 5953425e26c60c9e4561be20370b3ce1
-      size: 202
+      md5: 1ea4265c7f8afb4004cedaf49f76bdee
+      size: 177
