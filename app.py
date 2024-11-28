@@ -8,6 +8,7 @@ from pathlib import Path
 import jsonlines
 from haystack import Document
 import os
+from collections import Counter
 
 description = """
 # newsrag
@@ -73,6 +74,11 @@ with gr.Blocks() as demo:
         # Describe each topic with a human readable title
         topic_describer = DescribeTopicPipeline(generator=config.get_generator_model())
         topic_descriptions = [topic_describer.run(topic) for topic in result["topic_model"]["topic_words"]]
+
+        # add a hint to the user for the size of each topic
+        documents = result["topic_model"]["documents"]
+        topic_sizes = Counter([doc.meta["topic_id"] for doc in documents])
+        topic_descriptions = [f"{description} ({topic_sizes[i]})" for i, description in enumerate(topic_descriptions)]
         
         return gr.update(choices=topic_descriptions, value=None)
     

@@ -7,7 +7,7 @@ license = "Apache 2.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.10"
 haystack-ai = "^2.7.0"
 ollama-haystack = "^2.0.0"
 sentence-transformers = "^3.3.1"
