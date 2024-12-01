@@ -1,3 +1,7 @@
+"""
+Haystack pipelines used in this library, wrapped in their own classes for easier re-use.
+"""
+
 from datetime import datetime
 from multiprocessing.pool import ThreadPool
 
@@ -24,6 +28,12 @@ class StreamingGeneratorMixin:
     is defined.
     """
     def run_async(self, **run_kwargs):
+        """
+        Run this pipeline asyncronously. Use `stream_output` once called to initiate
+        streaming of output tokens.
+
+        Args provided here are passed to the class` `run` function.
+        """
         streamer = generator.StreamingText()
         self.llm.streaming_callback = streamer
 
@@ -34,18 +44,20 @@ class StreamingGeneratorMixin:
 
     
     def stream_output(self, documents: list[Document], sources: generator.Sources):
-    
-        # Stream the summary output, transforming citations
-        # on the fly and building a bibliography to output to a second
-        # component
+        """Stream pipeline output after running async.
+
+        Streams the summary output, transforming citations
+        on the fly and building a bibliography to output to a second component
+        """
         yield from generator.stream_sourced_output(iter(self.llm.streaming_callback), sources, documents)
 
 
 class JointDocumentIndexingPipeline:
-    """
-    Jointly index documents along with the document vocabulary
-    """
+    """Jointly indexes documents along with the document vocabulary."""
     def __init__(self, document_store, joint_embedder: JointEmbedderMixin):
+        """
+        Args:
+        """
         self._store = document_store
         self.embedder = joint_embedder
         self.writer = DocumentWriter(document_store=document_store, policy=DuplicatePolicy.OVERWRITE)

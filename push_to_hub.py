@@ -21,16 +21,16 @@ if __name__ == "__main__":
 
     try:
         dataset = datasets.load_dataset(repo_name)
-        latest_timestamp = dataset[-1]["timestamp"]
+        latest_timestamp = dataset["train"][-1]["timestamp"]
 
         # efficiently identify newer articles
         for i, doc in enumerate(documents):
-            if doc["timestamp"] > latest_timestamp:
+            if doc.meta["timestamp"] > latest_timestamp:
                 break
         new_docs = documents[i:]
         new_data = datasets.Dataset.from_generator(partial(gen_records, new_docs))
 
-        dataset = datasets.concatenate_datasets([dataset, new_data])
+        dataset = datasets.concatenate_datasets([dataset["train"], new_data])
         print(f"Uploading {len(dataset)} records of new data")
         
     except datasets.data_files.EmptyDatasetError:

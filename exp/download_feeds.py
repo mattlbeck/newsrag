@@ -1,3 +1,7 @@
+"""
+DVC pipeline stage.
+Downloads all available news feeds entries and writes them file.
+"""
 import newsrag.feeds as feeds
 from pathlib import Path
 import json

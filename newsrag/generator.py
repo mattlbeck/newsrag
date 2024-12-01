@@ -20,7 +20,7 @@ def transform_citations(citation: str,) -> list[int]:
 
 
 class StreamingText:
-
+    """A callback that that accepts streaming output from a model"""
     def __init__(self):
         self._text = Queue()
         self._done = False
@@ -46,13 +46,20 @@ class StreamingText:
 
 
 class Sources:
-
+    """Manages a list of sources that can be generated as a bibliography"""
     def __init__(self):
 
         self._ids = []
         self._sources = []
 
     def add_source(self, document: Document) -> int:
+        """Add a new source if it ist not already in the source list.
+        
+        Args:
+            document: the document to add as a source
+        
+        returns: The unique citation number of the document in the source list.
+        """
         try:
             return self._ids.index(document.id) + 1
         except ValueError:
@@ -61,6 +68,7 @@ class Sources:
             return len(self._sources)
 
     def generate_bibliography(self):
+        """Generates formatted strings representing each source."""
         for i, source in enumerate(self._sources):
             title = source.meta["title"]
             link = source.meta["link"]
@@ -68,7 +76,7 @@ class Sources:
             yield f"{i+1}. {title} - [{vendor}]({link})"
 
 
-def stream_sourced_output(stream, sources: Sources, documents):
+def stream_sourced_output(stream, sources: Sources, documents: list[Document]) -> tuple[list, Sources]:
     history = ""
     
     ref = ""
