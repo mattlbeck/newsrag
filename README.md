@@ -33,3 +33,5 @@ Run the Gradio app
 ```
 gradio app.py
 ```
+
+You can alter change the generator and embedder that is used by editing the `config.yaml`.
