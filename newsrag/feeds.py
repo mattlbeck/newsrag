@@ -1,3 +1,9 @@
+"""
+Implements opinionated parsing of feeds into haystack Document objects.
+
+This module also acts as a library of implemented feed parsers for different vendors. 
+"""
+
 from collections import defaultdict
 import inspect
 import re
@@ -10,19 +16,19 @@ import feedparser
 from haystack import Document
 
 
-class MLStripper(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.reset()
-        self.strict = False
-        self.convert_charrefs= True
-        self.text = StringIO()
-    def handle_data(self, d):
-        self.text.write(d)
-    def get_data(self):
-        return self.text.getvalue()
-
 def strip_tags(html: str):
+    """Strip html tags from a string"""
+    class MLStripper(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.reset()
+            self.strict = False
+            self.convert_charrefs= True
+            self.text = StringIO()
+        def handle_data(self, d):
+            self.text.write(d)
+        def get_data(self):
+            return self.text.getvalue()
     s = MLStripper()
     s.feed(html)
     return s.get_data()
@@ -60,9 +66,12 @@ class Feed:
     
     def parse(self, item: dict) -> tuple[str, dict]:
         """
-        overridable method that must return a tuple of
+        Parse a dictionary for a feed entry to extract the content and metadata.
+
+        This is an overridable method that must return a tuple of
         (content, meta: dict) given the item, which is the parsed
-        entry from an RSS feed.
+        entry from an RSS feed. The returned data is then added to the information used
+        to construct a Document in `_feed2doc`
         """
         return item["title"], {}
 
@@ -73,6 +82,8 @@ class Feed:
         If `self.subfeeds` is none, it will assume the only feed is
         defined by the base `self._url`. In that case the subfeed will
         be named "main".
+
+        :returns: a flat list of Document objects for all subfeeds.
         """
         
         if not self.subfeeds:
@@ -101,8 +112,10 @@ class Feed:
         """
         Download and parse all entries of a subfeed.
         
-        Args:
-        name: subfeed name. Must be in `self.subfeeds`. If None, assumes there is only one subfeed given by the base URL
+        :param name: 
+            The identifier of the subfeed. Must be in `self.subfeeds`. 
+            If None, assumes there is only one subfeed given by the base URL
+        :returns: a list of Document objects for each subfeed entry.
         """
         if name:
             try:

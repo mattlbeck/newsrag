@@ -3,10 +3,10 @@ Haystack pipelines used in this library, wrapped in their own classes for easier
 """
 
 from datetime import datetime
-from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import AsyncResult, ThreadPool
+from typing import Generator
 
 import arrow
-import newsrag.generator as generator
 from haystack import Document, Pipeline
 from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
 from haystack.components.rankers import MetaFieldRanker
@@ -17,8 +17,8 @@ from haystack.components.writers.document_writer import DocumentWriter
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.types import DuplicatePolicy
 
-from newsrag.topics import (JointEmbedderMixin,
-                            SentenceTransformersJointEmbedder, TopicModel)
+import newsrag.generator as generator
+from newsrag.topics import (JointEmbedderMixin, TopicModel)
 
 
 class StreamingGeneratorMixin:
@@ -27,36 +27,47 @@ class StreamingGeneratorMixin:
     These methods assume that there is an `llm` component as an attribute and a `run` method
     is defined.
     """
-    def run_async(self, **run_kwargs):
+    def run_async(self, **run_kwargs) -> AsyncResult:
         """
         Run this pipeline asyncronously. Use `stream_output` once called to initiate
         streaming of output tokens.
 
-        Args provided here are passed to the class` `run` function.
+        :param **run_kwargs: passed to the class' `run` function.
+        :returns: a multiprocessing.pool.AsyncResult object
         """
         streamer = generator.StreamingText()
         self.llm.streaming_callback = streamer
 
         pool = ThreadPool(processes=1)
   
-        async_result = pool.apply_async(self.run, kwds=run_kwargs, error_callback=lambda x: print("Error in generation thread: ", x))
+        async_result = pool.apply_async(
+            self.run, 
+            kwds=run_kwargs, 
+            error_callback=lambda x: print("Error in generation thread: ", x)
+        )
         return async_result
 
     
-    def stream_output(self, documents: list[Document], sources: generator.Sources):
+    def stream_output(self, documents: list[Document], sources: generator.Sources) -> Generator[tuple[list, generator.Sources], None, None]:
         """Stream pipeline output after running async.
 
         Streams the summary output, transforming citations
-        on the fly and building a bibliography to output to a second component
+        on the fly and building a bibliography to output to a second component.
+
+        :yield: a tuple of the models' decoded output so far, and the sources referenced.
         """
         yield from generator.stream_sourced_output(iter(self.llm.streaming_callback), sources, documents)
 
 
 class JointDocumentIndexingPipeline:
     """Jointly indexes documents along with the document vocabulary."""
+
     def __init__(self, document_store, joint_embedder: JointEmbedderMixin):
         """
-        Args:
+        :param document_store: A haystack document store where the documents will be indexed to.
+        :param joint_embedder: 
+            An embedder that inherits from JointEmbedderMixin, capable of embedding
+            both documents and the vocabularly.
         """
         self._store = document_store
         self.embedder = joint_embedder
@@ -66,7 +77,7 @@ class JointDocumentIndexingPipeline:
         self.pipeline.add_component("writer", self.writer)
         self.pipeline.connect("embedder", "writer")
 
-    def run(self, documents: list[Document]):
+    def run(self, documents: list[Document]) -> dict:
         return self.pipeline.run({"embedder": {"documents": documents}})
         
 
@@ -77,8 +88,11 @@ class TopicModelPipeline:
     topic and topic score.
     """
 
-
     def __init__(self, document_store, **top2vec_args):
+        """
+        :param document_store: A haystack document store where the documents will be indexed to.
+        :param **top2vec_args: Arguments that are passed to the topic model
+        """
         self._store = document_store
         
         self.retriever = FilterRetriever(document_store)
@@ -106,7 +120,7 @@ class TopicModelPipeline:
         self.pipeline.connect("topic_model.documents", "writer")
 
 
-    def run(self, min_date: datetime):
+    def run(self, min_date: datetime) -> dict:
         return self.pipeline.run({
             "retriever": {"filters": {
                           "operator": "OR",
@@ -118,6 +132,11 @@ class TopicModelPipeline:
 
 
 class DescribeTopicPipeline:
+    """Human-readable descriptions of modelled topics.
+
+    The pipeline accepts a list of keywords and asks a generator to provide a short
+    description of this topic.
+    """
     prompt_template = """
 Below is a list of keywords derived from various news articles that share the same topic. Please provide a short description, maximum 5 words, of the topic that best fits. Output only the topic description.
 Keywords: {{ topic_words|join(', ') }}
@@ -125,6 +144,10 @@ Topic:
 """
 
     def __init__(self, generator, max_words=10):
+        """
+        :param generator: The haystack generator component to use in this pipeline.
+        :param max_words: The maximum number of keywords provided to the generator.
+        """
         self.max_words=max_words
 
         self.prompt = ChatPromptBuilder([ChatMessage.from_user(self.prompt_template)])
@@ -134,7 +157,14 @@ Topic:
         self.pipeline.add_component("llm", self.llm)
         self.pipeline.connect("prompt", "llm")
 
-    def run(self, topic_words: list[str], debug=False):
+    def run(self, topic_words: list[str], debug=False) -> str | dict:
+        """Run the pipeline.
+
+        :param topic_words: the list of topic keywords to generate a description for
+        :param debug: if True, output the whole pipeline result
+        :return: The generated description, or if in debuge mode all pipeline results.
+        
+        """
         result = self.pipeline.run({ "prompt": {"topic_words": topic_words}}, include_outputs_from=["prompt"])
         if debug:
             return result
@@ -142,10 +172,7 @@ Topic:
     
 
 class QARetrievalPipeline:
-    """Retrieve documents from a document score relevant to the query.
-    
-    A ranker will additionally order the topics and limit the number of documents returned.
-    """
+    """Retrieve documents from a document store relevant to the query."""
 
     def __init__(self, document_store, text_embedder, document_count=10):
         self.document_store = document_store
@@ -158,6 +185,11 @@ class QARetrievalPipeline:
         self.pipeline.connect("embedder", "retriever")
 
     def run(self, query) -> list[Document]:
+        """Run the pipeline.
+
+        :param query: the query to retrieve documents against
+        :return: the list of documents retrieved.
+        """
         results = self.pipeline.run(
             {
                 "embedder": {"text": query},
@@ -180,7 +212,9 @@ Answer
 """
 
     def __init__(self, generator):
-
+        """
+        :param generator: The haystack generator to use in this pipeline.
+        """
         self.prompt_builder = ChatPromptBuilder(template=[ChatMessage.from_user(self.prompt_template)])
         self.llm = generator
         
@@ -190,9 +224,13 @@ Answer
         
         self.pipeline.connect("prompt_builder.prompt", "llm")
     
-    def run(self, question: str, documents: list[Document], min_date: datetime=None):
-        if not min_date:
-            min_date = arrow.utcnow().shift(days=-1)
+    def run(self, question: str, documents: list[Document]) -> str:
+        """Run the pipeline
+        
+        :param question: the query to answer.
+        :param documents: the list of source documents to place in the context.
+        :return: the generated output.        
+        """
         results = self.pipeline.run(
             {
                 "prompt_builder": {"question": question, "documents": documents}
@@ -201,12 +239,16 @@ Answer
         return results["llm"]["replies"][0].content
     
 class TopicRetrievalPipeline:
-    """Retrieve documents from a document score that belong to a specific topic.
+    """Retrieve documents from a document store that belong to a specific topic.
     
     A ranker will additionally order the topics and limit the number of documents returned.
     """
 
     def __init__(self, document_store, document_count=10):
+        """
+        :param document_store: the haystack document store to use in this pipeline.
+        :param document_count: the number of documents retrieved by this pipeline.
+        """
         self.document_store = document_store
         self.retriever = FilterRetriever(document_store=document_store)
         self.ranker = MetaFieldRanker(meta_field="topic_score", missing_meta="drop", top_k=document_count)
@@ -215,7 +257,7 @@ class TopicRetrievalPipeline:
         self.pipeline.add_component("ranker", self.ranker)
         self.pipeline.connect("retriever", "ranker")
 
-    def run(self, topic_id):
+    def run(self, topic_id) -> list[Document]:
         results = self.pipeline.run(
             {
                 "retriever": {"filters": {"field": "meta.topic_id", "operator": "==", "value": topic_id}}
@@ -243,7 +285,7 @@ Summary:"""
         self.pipeline.add_component("llm", self.llm)
         self.pipeline.connect("prompt_builder", "llm")
     
-    def run(self, documents: list[Document], debug=False):
+    def run(self, documents: list[Document], debug=False) -> str:
         results = self.pipeline.run(
             {
                 "prompt_builder": {"documents": documents}

@@ -1,15 +1,24 @@
 import re
 from queue import Queue
+from typing import Generator
 
 from haystack import Document
 
 
-def transform_citations(citation: str,) -> list[int]:
+def transform_citations(citation: str) -> list[int]:
+    """
+    Extracts citations from the citation pattern [ARTICLE x, ARTICLE y].
+    
+    Arguments: citation (st)
+    """
     cite_numbers = []
+    # match the general [ ... ] pattern, capturing start, content and end
     m = re.match(r"(.*\[)(.+)(\].*)", citation, flags=re.DOTALL)
     if not m:
         raise ValueError(f"Bad citation format: {citation}")
     start, content, end = m.groups()
+
+    # extract article numbers
     m = re.findall(r"(?:ARTICLE\s(\d+))+", content)
     if not m:
         return start, [], end
@@ -76,23 +85,41 @@ class Sources:
             yield f"{i+1}. {title} - [{vendor}]({link})"
 
 
-def stream_sourced_output(stream, sources: Sources, documents: list[Document]) -> tuple[list, Sources]:
+def stream_sourced_output(stream, sources: Sources, documents: list[Document]) -> Generator[tuple[list, Sources], None, None]:
+    """Stream output that may contain citations that need to be parsed in stream.
+    
+    :param stream: a generator that will yield new tokens.
+    :param sources: a running list of sources to add to.
+    :param documents: the documents that may be sourced in the text stream.
+
+    :yield: a tuple of the current output up till now, and the current source list.
+    """
     history = ""
     
     ref = ""
     for new_token in stream:
+        # cache tokens when a citation opener is found. The whole citation is then 
+        # yielded only when it is complete and parsed.
         if "[" in new_token or ref:
             ref += new_token
         if ref and "]" in new_token:
+            # if there is an ongoing citation and it is closed, parse these citations
             start, citations, end = transform_citations(ref)
             if not citations:
                 new_token = ["BAD REF"]
 
+            # for each citation found, retrieve the document it is citing and add it 
+            # to the source list
             new_citations = []
             for cite in citations:
                 doc = documents[cite - 1]
+                # the ref may be different to the input ref if the document was already
+                # in the source list.
                 new_ref = sources.add_source(doc)
                 new_citations.append(new_ref)
+
+            # recompile the citation back into a string as the next token, including
+            # the new reference ids that may have been referencing previous sources.
             new_token = (start + ','.join(str(cite) for cite in new_citations) + end)
             ref = ""
             
