@@ -47,9 +47,10 @@ def get_cached_news():
 with gr.Blocks() as demo:
     config = AppConfig()
 
-    def get_topics(document_store, min_date):
+    def get_topics(document_store, min_date, progress=gr.Progress()):
         """Downloads news feeds and indexes their content in to the central document store"""
         # download news from various feeds, formatted as haystack Document objects complete with some metadata
+        progress(0.25, desc="Downloading news")
         news = get_cached_news()
         if not news: 
             print("Downloading fresh news")
@@ -59,19 +60,22 @@ with gr.Blocks() as demo:
         in_date_news = [doc for doc in news if doc.meta["timestamp"] >= min_date.timestamp()]
         print(f"{len(in_date_news)} news articles after filtering by date")
 
+        progress(0.5, desc="Indexing news")
         # Use the indexing pipeline to embed and write these documents to the chosen document store
         indexing = JointDocumentIndexingPipeline(document_store=document_store, joint_embedder=config.get_joint_document_embedder(min_word_count=3))
         indexing.run(in_date_news)
 
-        return model_topics(document_store, min_date)
+        return model_topics(document_store, min_date, progress=progress)
     
-    def model_topics(document_store, min_date):
+    def model_topics(document_store, min_date, progress=gr.Progress()):
         """Models the topics, assuming they have already been indexed in the store"""
         # the topic pipeline discovers topics within the embedded documents and labels them with the embedded word vocabulary
-        topics = TopicModelPipeline(document_store=document_store, umap_args={"n_neighbors": 10})
+        progress(0.75, desc="Discovering topics")
+        topics = TopicModelPipeline(document_store=document_store, umap_args={"n_neighbors": 20})
         result = topics.run(min_date=min_date)
 
         # Describe each topic with a human readable title
+        progress(0.9, desc="Describing topics")
         topic_describer = DescribeTopicPipeline(generator=config.get_generator_model())
         topic_descriptions = [topic_describer.run(topic) for topic in result["topic_model"]["topic_words"]]
 
