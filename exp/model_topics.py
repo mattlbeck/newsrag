@@ -25,9 +25,8 @@ class NpEncoder(json.JSONEncoder):
     
 def evaluate_topics(model_results):
     documents = model_results["documents"]
-    embeddings = [d.embedding for d in documents]
     topic_ids = [d.meta["topic_id"] for d in documents]
-    silhouette = silhouette_score(embeddings, labels=topic_ids)
+    silhouette = silhouette_score(model_results["umap_embedding"], labels=topic_ids)
     return {
             "total_topics": len(model_results["topic_words"]),
             "silhouette_score": float(silhouette),

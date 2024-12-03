@@ -1,5 +1,6 @@
 from typing import List
-
+import umap
+import hdbscan
 import numpy as np
 from haystack import Document, component
 from haystack.components.embedders import (
@@ -7,6 +8,14 @@ from haystack.components.embedders import (
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from top2vec import Top2Vec
+
+DEFAULT_UMAP_ARGS = {'n_neighbors': 15,
+                    'n_components': 5,
+                    'metric': 'cosine'}
+
+DEFAULT_HDBSCAN_ARGS = {'min_cluster_size': 15,
+                        'metric': 'euclidean',
+                        'cluster_selection_method': 'eom'}
 
 
 @component
@@ -116,14 +125,28 @@ class TopicModel(Top2Vec):
         self.vocab = [d.content for d in word_embeddings]
         self.word_vectors = [d.embedding for d in word_embeddings]
 
-        self.compute_topics(umap_args=self.umap_args,
-                            hdbscan_args=self.hdbscan_args,
-                            topic_merge_delta=self.topic_merge_delta,
-                            gpu_umap=self.gpu_umap,
-                            gpu_hdbscan=self.gpu_hdbscan,
-                            index_topics=self.index_topics,
-                            contextual_top2vec=False,
-                            c_top2vec_smoothing_window=self.c_top2vec_smoothing_window)
+        # These computations are from `compute_topics` and have been surfaced here
+        # in order to retain the umap embedding for further analysis
+        umap_model = umap.UMAP(**self.umap_args).fit(self.document_vectors)
+        umap_embedding = umap_model.embedding_
+
+        cluster = hdbscan.HDBSCAN(**self.hdbscan_args).fit(umap_embedding)
+        labels = cluster.labels_
+
+        self._create_topic_vectors(labels)
+        self._deduplicate_topics(topic_merge_delta=self.topic_merge_delta)
+        self.topic_words, self.topic_word_scores = self._find_topic_words_and_scores(topic_vectors=self.topic_vectors)
+        self.doc_top, self.doc_dist = self._calculate_documents_topic(self.topic_vectors,
+                                                                      self.document_vectors,
+                                                                      topic_index=None)
+        
+        # calculate topic sizes
+        self.topic_sizes = self._calculate_topic_sizes(hierarchy=False)
+
+        # re-order topics
+        self._reorder_topics(hierarchy=False)
+        
+
         
         topic_num, topic_score, _, _ = self.get_documents_topics(list(range(len(self.documents))))
         for num, score, doc in zip(topic_num, topic_score, self.documents):
@@ -131,5 +154,5 @@ class TopicModel(Top2Vec):
             doc.meta["topic_score"] = score
 
         topic_words, word_scores, topic_nums = self.get_topics()
-        return {"documents": self.documents, "topic_words": topic_words}
+        return {"documents": self.documents, "topic_words": topic_words, "umap_embedding": umap_embedding}
         
