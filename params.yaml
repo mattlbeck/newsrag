@@ -1,6 +1,7 @@
 model_topics:
   days: 1
   reps: 31
+  topic_merge_delta: 0.1
   umap:
     n_neighbors: 50
     min_dist: 0.1

@@ -46,7 +46,12 @@ if __name__ == "__main__":
     doc_store_file = data_dir / "document_store.json"
     doc_store = InMemoryDocumentStore.load_from_disk(doc_store_file)
 
-    topic_model = pipelines.TopicModelPipeline(doc_store, umap_args=params["umap"], hdbscan_args=params["hdbscan"])
+    topic_model = pipelines.TopicModelPipeline(
+        doc_store, 
+        umap_args=params["umap"], 
+        hdbscan_args=params["hdbscan"],
+        topic_merge_delta=params["topic_merge_delta"]
+    )
 
     all_metrics = defaultdict(list)
     # run a number of replicates for umap and clustering

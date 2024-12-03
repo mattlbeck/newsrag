@@ -45,13 +45,14 @@ stages:
       size: 53687753
     - path: exp/model_topics.py
       hash: md5
-      md5: 1e99a86c429fc6a79a0ccba1c9832f87
-      size: 2793
+      md5: 8847d8f357b0b61ef10750d45cb78afe
+      size: 2880
     params:
       params.yaml:
         model_topics:
           days: 1
           reps: 31
+          topic_merge_delta: 0.1
           umap:
             n_neighbors: 50
             min_dist: 0.1
@@ -65,5 +66,5 @@ stages:
     outs:
     - path: data/model_topics.json
       hash: md5
-      md5: 4f01225d4c9813f430b1f07e7d25d50f
+      md5: a59e12ba852caa46c29564e91f2a1568
       size: 251
