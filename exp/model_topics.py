@@ -12,6 +12,7 @@ from sklearn.metrics import silhouette_score
 from collections import defaultdict
 import statistics
 import numpy as np
+from collections import Counter
 
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -26,11 +27,13 @@ class NpEncoder(json.JSONEncoder):
 def evaluate_topics(model_results):
     documents = model_results["documents"]
     topic_ids = [d.meta["topic_id"] for d in documents]
+    topic_sizes = Counter(topic_ids).values()
     silhouette = silhouette_score(model_results["umap_embedding"], labels=topic_ids)
     return {
             "total_topics": len(model_results["topic_words"]),
             "silhouette_score": float(silhouette),
-            "total_documents": len(model_results["documents"])
+            "total_documents": len(model_results["documents"]),
+            "average_topic_size": statistics.mean(topic_sizes)     
         }
 
 if __name__ == "__main__":
