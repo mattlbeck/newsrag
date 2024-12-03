@@ -50,11 +50,11 @@ stages:
     params:
       params.yaml:
         model_topics:
-          days: 1
+          days: 7
           reps: 31
-          topic_merge_delta: 0.1
+          topic_merge_delta: 0.01
           umap:
-            n_neighbors: 50
+            n_neighbors: 20
             min_dist: 0.1
             n_components: 5
             metric: euclidean
@@ -66,5 +66,5 @@ stages:
     outs:
     - path: data/model_topics.json
       hash: md5
-      md5: a59e12ba852caa46c29564e91f2a1568
-      size: 251
+      md5: 9deb8a79081ed1ea207b7124f32e1419
+      size: 252

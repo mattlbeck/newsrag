@@ -1,9 +1,9 @@
 model_topics:
-  days: 1
+  days: 7
   reps: 31
-  topic_merge_delta: 0.1
+  topic_merge_delta: 0.01
   umap:
-    n_neighbors: 50
+    n_neighbors: 20
     min_dist: 0.1
     n_components: 5
     metric: euclidean
