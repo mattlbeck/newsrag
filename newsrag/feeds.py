@@ -132,8 +132,11 @@ class Feed:
             print(f"Warning: {url} has no entries.")
         docs = []
         for entry in feed:
-            content, meta = self.parse(entry)
-            docs.append(self._feed2doc(entry, content, subfeeds=name, **meta))
+            try:
+                content, meta = self.parse(entry)
+                docs.append(self._feed2doc(entry, content, subfeeds=name, **meta))
+            except KeyError:
+                print("Bad feed:", str(entry))
         return docs
 
 
