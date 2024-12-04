@@ -1,17 +1,17 @@
 index_documents:
   min_word_count: 3
-  ngram_vocab: True
+  ngram_vocab: true
 model_topics:
   days: 1
   reps: 31
-  topic_merge_delta: 0.01
+  topic_merge_delta: 0.001
   umap:
     n_neighbors: 20
     min_dist: 0.1
     n_components: 5
     metric: euclidean
   hdbscan:
-    min_cluster_size: 15
+    min_cluster_size: 10
     min_samples: null
     cluster_selection_epsilon: 0.0
     alpha: 1.0

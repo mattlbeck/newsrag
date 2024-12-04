@@ -57,19 +57,19 @@ stages:
         model_topics:
           days: 1
           reps: 31
-          topic_merge_delta: 0.01
+          topic_merge_delta: 0.001
           umap:
             n_neighbors: 20
             min_dist: 0.1
             n_components: 5
             metric: euclidean
           hdbscan:
-            min_cluster_size: 15
+            min_cluster_size: 10
             min_samples:
             cluster_selection_epsilon: 0.0
             alpha: 1.0
     outs:
     - path: data/model_topics.json
       hash: md5
-      md5: 0ce84bc02e08e54b66f6fb7a7e713937
-      size: 287
+      md5: ea83e7fd6a1f70d57647cb686e19f809
+      size: 285
