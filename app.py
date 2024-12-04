@@ -16,6 +16,9 @@ from newsrag.pipelines import (DescribeTopicPipeline,
                                QAGeneratorPipeline, QARetrievalPipeline,
                                SummarisationPipeline, TopicModelPipeline,
                                TopicRetrievalPipeline)
+import yaml
+
+DEFAULT_PARAMS = yaml.safe_load(open("params.yaml"))
 
 description = """
 # newsrag
@@ -24,8 +27,6 @@ description = """
  - An LLM summarises each topic, building a list of citations as the response is streamed
  - Q&A allows you to ask questions against the database of news headlines in a classic RAG paradigm
 """
-
-
 
 def get_bibliography(sources: Sources):
     source_list = []
@@ -54,7 +55,7 @@ def get_cached_news():
 with gr.Blocks() as demo:
     config = AppConfig()
 
-    def get_topics(document_store, min_date, progress=gr.Progress()):
+    def get_topics(document_store, min_date, n_neighbors, min_cluster_size, progress=gr.Progress()):
         """Downloads news feeds and indexes their content in to the central document store"""
         # download news from various feeds, formatted as haystack Document objects complete with some metadata
         progress(0.25, desc="Downloading news")
@@ -72,13 +73,17 @@ with gr.Blocks() as demo:
         indexing = JointDocumentIndexingPipeline(document_store=document_store, joint_embedder=config.get_joint_document_embedder(min_word_count=3))
         indexing.run(in_date_news)
 
-        return model_topics(document_store, min_date, progress=progress)
+        return model_topics(document_store, min_date, n_neighbors, min_cluster_size, progress=progress)
     
-    def model_topics(document_store, min_date, progress=gr.Progress()):
+    def model_topics(document_store, min_date, n_neighbors, min_cluster_size, progress=gr.Progress()):
         """Models the topics, assuming they have already been indexed in the store"""
         # the topic pipeline discovers topics within the embedded documents and labels them with the embedded word vocabulary
         progress(0.75, desc="Discovering topics")
-        topics = TopicModelPipeline(document_store=document_store, umap_args={"n_neighbors": 20})
+        topics = TopicModelPipeline(
+            document_store=document_store, 
+            umap_args={"n_neighbors": n_neighbors},
+            hdbscan_args={"min_cluster_size": min_cluster_size}
+        )
         result = topics.run(min_date=min_date)
 
         # Describe each topic with a human readable title
@@ -94,13 +99,14 @@ with gr.Blocks() as demo:
         topic_descriptions += [f"In other news... ({len(topic_outliers)})"]
 
         
-        return gr.update(choices=topic_descriptions, value=None), gr.update(value=result["topic_model"]["topic_words"])
+        return gr.update(choices=topic_descriptions, value=None), result["topic_model"]["topic_words"]
     
     def summarise(document_store, sources, topics, topic_num: int):
         """Summarises the given topic by retrieving documents related to that topic and 
         putting them throuth the summariser pipeline.
         
         This clears the chat history and starts again with a new news summary"""
+        print(f"number of topics: {len(topics)}, selected: {topic_num}")
         if topic_num >= len(topics):
             # retrieve miscelaneous news
             outlier_docs = document_store.filter_documents( {
@@ -163,7 +169,7 @@ with gr.Blocks() as demo:
     # keep persistent document store and sources list
     sources = gr.State(value=Sources())
     document_store = gr.State(value=config.get_document_store())
-    topics = gr.State(value=[])
+    topics = gr.State(value=None)
 
     # arrange UI elements
     with gr.Row():
@@ -172,7 +178,20 @@ with gr.Blocks() as demo:
             gr.DateTime.time_format = "%Y-%m-%d" # workaround for a gradio bug
             min_date = gr.DateTime(arrow.utcnow().shift(days=-1).datetime, type="datetime", include_time=False, label="Oldest news:")
 
+            n_neighbors = gr.Slider(
+                label="UMAP nearest neighbors", 
+                minimum=1, 
+                maximum=50, 
+                value=DEFAULT_PARAMS["model_topics"]["umap"]["n_neighbors"]
+            )
+            min_cluster_size = gr.Slider(
+                label="hdbscan minimum cluster size",
+                minimum=2,
+                maximum=30,
+                value=DEFAULT_PARAMS["model_topics"]["hdbscan"]["min_cluster_size"]
+            )
             refresh_topics = gr.Button(value="Refresh topics")
+
 
         with gr.Column():
             title = gr.Markdown(description)
@@ -199,10 +218,10 @@ with gr.Blocks() as demo:
     ), outputs=(open_sidebar_btn, close_sidebar_btn, sidebar))
     
     # set actions and triggers
-    demo.load(get_topics, inputs=[document_store, min_date], outputs=[topic_selection, topics])
+    get_topics_inputs = [document_store, min_date, n_neighbors, min_cluster_size]
+    demo.load(get_topics, inputs=get_topics_inputs, outputs=[topic_selection, topics])
     refresh_topics.click(model_topics, inputs=[document_store, min_date], outputs=[topic_selection, topics])
     topic_selection.select(summarise, inputs=[document_store, sources, topics, topic_selection], outputs=[chatbot, bibliography])
-    min_date.change(get_topics, inputs=[document_store, min_date], outputs=[topic_selection])
 
     qa_input.submit(user_query, inputs=[qa_input, chatbot], outputs=[chatbot, qa_input]).then(qa, inputs=[document_store, sources, chatbot], outputs=[chatbot, bibliography])
 demo.launch()
