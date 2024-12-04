@@ -95,18 +95,17 @@ with gr.Blocks() as demo:
         documents = result["topic_model"]["documents"]
         topic_outliers = [d for d in documents if d.meta["topic_outlier"]]
         topic_sizes = Counter([doc.meta["topic_id"] for doc in documents if not doc.meta["topic_outlier"]])
-        topic_descriptions = [f"{description} ({topic_sizes[i]})" for i, description in enumerate(topic_descriptions)]
-        topic_descriptions += [f"In other news... ({len(topic_outliers)})"]
+        selector_values = [f"{description} ({topic_sizes[i]})" for i, description in enumerate(topic_descriptions)]
+        selector_values += [f"In other news... ({len(topic_outliers)})"]
 
         
-        return gr.update(choices=topic_descriptions, value=None), result["topic_model"]["topic_words"]
+        return gr.update(choices=selector_values, value=None), topic_descriptions
     
-    def summarise(document_store, sources, topics, topic_num: int):
+    def summarise(document_store, sources, history, topics, topic_num: int):
         """Summarises the given topic by retrieving documents related to that topic and 
         putting them throuth the summariser pipeline.
         
         This clears the chat history and starts again with a new news summary"""
-        print(f"number of topics: {len(topics)}, selected: {topic_num}")
         if topic_num >= len(topics):
             # retrieve miscelaneous news
             outlier_docs = document_store.filter_documents( {
@@ -125,10 +124,10 @@ with gr.Blocks() as demo:
 
         async_result = newsrag.run_async(documents=documents)
 
-        history = [{"role": "assistant", "content": ""}]
+        history.append({"role": "assistant", "content": ""})
         # Run the news summarisation pipeline
         for content, sources in newsrag.stream_output(documents, sources):
-            history[0]["content"] = content
+            history[-1]["content"] = content
             bibliography = get_bibliography(sources)
             yield history, bibliography
 
@@ -142,6 +141,14 @@ with gr.Blocks() as demo:
         if history is None:
             history = []
         return history + [{"role": "user", "content": user_message}], gr.update(value="")
+    
+    def user_summarise(history, topic_descriptions, topic_selection):
+        if topic_selection >= len(topic_descriptions):
+            # request a summary of other news
+            return history + [{"role": "user", "content": "What else has been happening in the news?"}]
+        else: 
+            topic = topic_descriptions[topic_selection]
+            return history + [{"role": "user", "content": f"Summarise the latest developments around the topic: {topic}"}]
     
     def qa(document_store, sources, history: list):
         retriever = QARetrievalPipeline(document_store=document_store, text_embedder=config.get_text_embedder())
@@ -221,7 +228,7 @@ with gr.Blocks() as demo:
     get_topics_inputs = [document_store, min_date, n_neighbors, min_cluster_size]
     demo.load(get_topics, inputs=get_topics_inputs, outputs=[topic_selection, topics])
     refresh_topics.click(model_topics, inputs=[document_store, min_date], outputs=[topic_selection, topics])
-    topic_selection.select(summarise, inputs=[document_store, sources, topics, topic_selection], outputs=[chatbot, bibliography])
+    topic_selection.select(user_summarise, inputs=[chatbot, topics, topic_selection], outputs=[chatbot]).then(summarise, inputs=[document_store, sources, chatbot, topics, topic_selection], outputs=[chatbot, bibliography])
 
     qa_input.submit(user_query, inputs=[qa_input, chatbot], outputs=[chatbot, qa_input]).then(qa, inputs=[document_store, sources, chatbot], outputs=[chatbot, bibliography])
 demo.launch()
