@@ -187,12 +187,14 @@ with gr.Blocks() as demo:
 
             n_neighbors = gr.Slider(
                 label="UMAP nearest neighbors", 
+                step=1,
                 minimum=1, 
                 maximum=50, 
                 value=DEFAULT_PARAMS["model_topics"]["umap"]["n_neighbors"]
             )
             min_cluster_size = gr.Slider(
                 label="hdbscan minimum cluster size",
+                step=1,
                 minimum=2,
                 maximum=30,
                 value=DEFAULT_PARAMS["model_topics"]["hdbscan"]["min_cluster_size"]
@@ -227,7 +229,7 @@ with gr.Blocks() as demo:
     # set actions and triggers
     get_topics_inputs = [document_store, min_date, n_neighbors, min_cluster_size]
     demo.load(get_topics, inputs=get_topics_inputs, outputs=[topic_selection, topics])
-    refresh_topics.click(model_topics, inputs=[document_store, min_date], outputs=[topic_selection, topics])
+    refresh_topics.click(model_topics, inputs=get_topics_inputs, outputs=[topic_selection, topics])
     topic_selection.select(user_summarise, inputs=[chatbot, topics, topic_selection], outputs=[chatbot]).then(summarise, inputs=[document_store, sources, chatbot, topics, topic_selection], outputs=[chatbot, bibliography])
 
     qa_input.submit(user_query, inputs=[qa_input, chatbot], outputs=[chatbot, qa_input]).then(qa, inputs=[document_store, sources, chatbot], outputs=[chatbot, bibliography])
