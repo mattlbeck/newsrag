@@ -2,11 +2,14 @@ import json
 from pathlib import Path
 
 import jsonlines
+import yaml
 from haystack import Document
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 import newsrag.pipelines as pipelines
 import newsrag.topics as topics
+
+params = yaml.safe_load(open("params.yaml"))["index_documents"]
 
 if __name__ == "__main__":
     data_dir = Path("./data")
@@ -23,7 +26,12 @@ if __name__ == "__main__":
     store = InMemoryDocumentStore()
     
     embedder = topics.SentenceTransformersJointEmbedder()
-    indexing = pipelines.JointDocumentIndexingPipeline(store, joint_embedder=embedder)
+    indexing = pipelines.JointDocumentIndexingPipeline(
+        document_store=store, 
+        joint_embedder=embedder,
+        min_word_count=params["min_word_count"],
+        ngram_vocab=params["ngram_vocab"]    
+    )
     indexing.run(docs)
 
     words = store.filter_documents({"field": "type", "operator": "==", "value": "word"})

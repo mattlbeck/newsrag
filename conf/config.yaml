@@ -1,3 +1,6 @@
+index_documents:
+  min_word_count: 3
+  ngram_vocab: True
 model_topics:
   days: 1
   reps: 31

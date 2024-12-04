@@ -26,8 +26,15 @@ class JointEmbedderMixin:
     a set of embedded words.
     """
 
-    def __init__(self, *args, min_word_count=3, **kwargs): 
-        self.min_word_count=min_word_count
+    def __init__(self, *args, min_word_count=3, ngram_vocab=False, **kwargs): 
+        """
+        :param min_word_count: 
+            The minimum occurences of a word or phrase in documents for it to be used
+            to describe topics.
+        :param ngram_vocab: If True, use phrases within the word vocabulary
+        """
+        self.min_word_count = min_word_count
+        self.ngram_vocab = ngram_vocab
         super(JointEmbedderMixin, self).__init__(*args, **kwargs)
 
     @component.output_types(documents=list[Document])
@@ -36,7 +43,7 @@ class JointEmbedderMixin:
 
         from top2vec.top2vec import Top2Vec, default_tokenizer
         tokenized_corpus = [default_tokenizer(doc.content) for doc in documents]
-        vocab = Top2Vec.get_label_vocabulary(tokenized_corpus, min_count=self.min_word_count, ngram_vocab=False, ngram_vocab_args=None)
+        vocab = Top2Vec.get_label_vocabulary(tokenized_corpus, min_count=self.min_word_count, ngram_vocab=self.ngram_vocab, ngram_vocab_args=None)
         vocab_docs = [Document(content=v) for v in vocab]
 
         word_embeddings = super(JointEmbedderMixin, self).run(documents=vocab_docs)["documents"]

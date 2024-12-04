@@ -12,6 +12,8 @@ stages:
     deps:
       - exp/index_documents.py
       - data/documents.jsonl
+    params:
+      - index_documents
     outs:
       - data/document_store.json
     metrics:
