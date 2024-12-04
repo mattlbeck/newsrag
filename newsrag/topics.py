@@ -121,9 +121,41 @@ class TopicModel(Top2Vec):
         if hdbscan_args is not None:
             self.hdbscan_args.update(hdbscan_args)
 
-    @component.output_types(documents=list[Document], topic_words=list[list[str]])
+    @component.output_types(documents=list[Document], topic_words=list[list[str]], umap_embedding=list)
     # using List over list for input types due to weird compat requirement from haystack
     def run(self, document_embeddings: List[Document], word_embeddings: List[Document]):
+        """
+        Compute topics and label documents with their assigned topic.
+
+        This accepts the input document and word embeddings, runs umap and hdbscan
+        to find topic clusters, describes these clusters using keywords, and then
+        assigns a topic id to each document as well as the distance to its closest 
+        topic.
+
+        Outlier documents are also flagged. These are documents that are marked as 
+        outlying by hdbscan. If they are flagged as an outlier, they are still assigned
+        a topic id that represents their closest topic, as described by the topic score.
+
+        Computing the input document and word embeddings can be done with an embedding
+        component that inherits from JointEmbeddingMixin.
+
+        :param document_embeddings: 
+            a list of Documents representing the documents to find topics for. These
+            documents will appear in the output with new topic-related metadata fields
+            assigned. The documents must have been indexed with an associated embedding
+        :param word_embeddings:
+            a list of Documents representing the vocabulary that will be used to 
+            described topics. The documents must have been indexed with an associated
+            embedding.
+        :return: 
+            a dict of the following outputs:
+                document_embeddings: the documents provided with input with new fields
+                `topic_id` (int), `topic_score` (float), and `topic_outlier` (bool).
+                topic_words: a list of words, or ngrams, that describe each topic
+                umap_embedding: a list of embeddings (nd arrays) that are the umap
+                projections of each document. Useful for downstream evaluation.
+
+        """
         print(len(document_embeddings), " docs")
         print(len(word_embeddings), " words")
         self.documents = document_embeddings
@@ -138,9 +170,9 @@ class TopicModel(Top2Vec):
         umap_embedding = umap_model.embedding_
 
         cluster = hdbscan.HDBSCAN(**self.hdbscan_args).fit(umap_embedding)
-        labels = cluster.labels_
+        self.labels = cluster.labels_
 
-        self._create_topic_vectors(labels)
+        self._create_topic_vectors(self.labels)
         self._deduplicate_topics(topic_merge_delta=self.topic_merge_delta)
         self.topic_words, self.topic_word_scores = self._find_topic_words_and_scores(topic_vectors=self.topic_vectors)
         self.doc_top, self.doc_dist = self._calculate_documents_topic(self.topic_vectors,
@@ -156,9 +188,11 @@ class TopicModel(Top2Vec):
 
         
         topic_num, topic_score, _, _ = self.get_documents_topics(list(range(len(self.documents))))
-        for num, score, doc in zip(topic_num, topic_score, self.documents):
+        for num, score, doc, label in zip(topic_num, topic_score, self.documents, self.labels):
             doc.meta["topic_id"] = num
             doc.meta["topic_score"] = score
+            # flag as an outlier if the original hdbscan label was -1
+            doc.meta["topic_outlier"] = (label == -1)
 
         topic_words, word_scores, topic_nums = self.get_topics()
         return {"documents": self.documents, "topic_words": topic_words, "umap_embedding": umap_embedding}

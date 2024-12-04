@@ -4,6 +4,7 @@ import json
 import arrow
 
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack.components.rankers import MetaFieldRanker
 
 import newsrag.pipelines as pipelines
 import yaml
@@ -26,14 +27,21 @@ class NpEncoder(json.JSONEncoder):
     
 def evaluate_topics(model_results):
     documents = model_results["documents"]
-    topic_ids = [d.meta["topic_id"] for d in documents]
+    outlier_mask = np.array([d.meta["topic_outlier"] for d in documents])
+
+    # assess documents that are not outliers
+    topic_ids = [d.meta["topic_id"] for d in documents if not d.meta["topic_outlier"]]
     topic_sizes = Counter(topic_ids).values()
-    silhouette = silhouette_score(model_results["umap_embedding"], labels=topic_ids)
+    umap_embeddings = model_results["umap_embedding"][~outlier_mask]
+
+    num_outliers = np.sum(outlier_mask)
+    silhouette = silhouette_score(umap_embeddings, labels=topic_ids)
     return {
             "total_topics": len(model_results["topic_words"]),
             "silhouette_score": float(silhouette),
             "total_documents": len(model_results["documents"]),
-            "average_topic_size": statistics.mean(topic_sizes)     
+            "average_topic_size": statistics.mean(topic_sizes),
+            "total_outliers": int(num_outliers)
         }
 
 if __name__ == "__main__":
@@ -45,6 +53,13 @@ if __name__ == "__main__":
 
     doc_store_file = data_dir / "document_store.json"
     doc_store = InMemoryDocumentStore.load_from_disk(doc_store_file)
+    ranker = MetaFieldRanker(meta_field="timestamp", missing_meta="drop", top_k=1)
+
+    # get the newest document in the store
+    latest_doc = ranker.run(doc_store.filter_documents())["documents"][0]
+    latest_date = arrow.get(latest_doc.meta["timestamp"])
+    print(f"Latest docment: {latest_date}")
+    
 
     topic_model = pipelines.TopicModelPipeline(
         doc_store, 
@@ -54,16 +69,20 @@ if __name__ == "__main__":
     )
 
     all_metrics = defaultdict(list)
-    # run a number of replicates for umap and clustering
+    # run a number of replicates for umap and clustering to assess the stability 
+    # of the model
     for rep in range(params["reps"]):
         print(f"rep {rep}")
-        topic_results = topic_model.run(arrow.utcnow().shift(days=-params["days"]))
+
+        # model on topics with min date relative to the latest document date
+        topic_results = topic_model.run(latest_date.shift(days=-params["days"]))
         model_results = topic_results["topic_model"]
         metrics = evaluate_topics(model_results)
         print(metrics)
         all_metrics["total_topics"].append(metrics["total_topics"])
         all_metrics["silhouette_score"].append(metrics["silhouette_score"])
         all_metrics["total_documents"].append(metrics["total_documents"])
+        all_metrics["total_outliers"].append(metrics["total_outliers"])
 
     def summary_stats(metric):
         return {
@@ -78,5 +97,6 @@ if __name__ == "__main__":
         json.dump({
             "total_topics": summary_stats(all_metrics["total_topics"]),
             "silhouette_score": summary_stats(all_metrics["silhouette_score"]),
-            "total_documents": statistics.mean(all_metrics["total_documents"])
+            "total_documents": statistics.mean(all_metrics["total_documents"]),
+            "total_outliers": statistics.mean(all_metrics["total_outliers"])
         }, fh)

@@ -25,12 +25,13 @@ if __name__ == "__main__":
     # index documents
     store = InMemoryDocumentStore()
     
-    embedder = topics.SentenceTransformersJointEmbedder()
+    embedder = topics.SentenceTransformersJointEmbedder(
+        min_word_count=params["min_word_count"],
+        ngram_vocab=params["ngram_vocab"]  
+    )
     indexing = pipelines.JointDocumentIndexingPipeline(
         document_store=store, 
-        joint_embedder=embedder,
-        min_word_count=params["min_word_count"],
-        ngram_vocab=params["ngram_vocab"]    
+        joint_embedder=embedder  
     )
     indexing.run(docs)
 
