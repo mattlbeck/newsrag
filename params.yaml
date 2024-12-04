@@ -2,7 +2,7 @@ index_documents:
   min_word_count: 3
   ngram_vocab: True
 model_topics:
-  days: 7
+  days: 1
   reps: 31
   topic_merge_delta: 0.01
   umap:

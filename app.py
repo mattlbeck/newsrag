@@ -1,14 +1,21 @@
-import gradio as gr
-from newsrag.generator import Sources
-from newsrag.pipelines import SummarisationPipeline, JointDocumentIndexingPipeline, TopicModelPipeline, DescribeTopicPipeline, TopicRetrievalPipeline, QAGeneratorPipeline, QARetrievalPipeline
-import newsrag.feeds as feeds
-import arrow
-from newsrag.config import AppConfig
-from pathlib import Path
-import jsonlines
-from haystack import Document
 import os
 from collections import Counter
+from pathlib import Path
+from random import shuffle
+
+import arrow
+import gradio as gr
+import jsonlines
+from haystack import Document
+
+import newsrag.feeds as feeds
+from newsrag.config import AppConfig
+from newsrag.generator import Sources
+from newsrag.pipelines import (DescribeTopicPipeline,
+                               JointDocumentIndexingPipeline,
+                               QAGeneratorPipeline, QARetrievalPipeline,
+                               SummarisationPipeline, TopicModelPipeline,
+                               TopicRetrievalPipeline)
 
 description = """
 # newsrag
@@ -81,17 +88,33 @@ with gr.Blocks() as demo:
 
         # add a hint to the user for the size of each topic
         documents = result["topic_model"]["documents"]
-        topic_sizes = Counter([doc.meta["topic_id"] for doc in documents])
+        topic_outliers = [d for d in documents if d.meta["topic_outlier"]]
+        topic_sizes = Counter([doc.meta["topic_id"] for doc in documents if not doc.meta["topic_outlier"]])
         topic_descriptions = [f"{description} ({topic_sizes[i]})" for i, description in enumerate(topic_descriptions)]
+        topic_descriptions += [f"In other news... ({len(topic_outliers)})"]
+
         
-        return gr.update(choices=topic_descriptions, value=None)
+        return gr.update(choices=topic_descriptions, value=None), gr.update(value=result["topic_model"]["topic_words"])
     
-    def summarise(document_store, sources, topic_num: int):
+    def summarise(document_store, sources, topics, topic_num: int):
         """Summarises the given topic by retrieving documents related to that topic and 
         putting them throuth the summariser pipeline.
         
         This clears the chat history and starts again with a new news summary"""
-        documents = TopicRetrievalPipeline(document_store=document_store, document_count=30).run(topic_id=topic_num)
+        if topic_num >= len(topics):
+            # retrieve miscelaneous news
+            outlier_docs = document_store.filter_documents( {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.type", "operator": "==", "value": "document"},
+                    {"field": "meta.topic_outlier", "operator": "==", "value": True}
+                ]
+            }) 
+            shuffle(outlier_docs)
+            documents = outlier_docs[:30]
+        else:
+            documents = TopicRetrievalPipeline(document_store=document_store, document_count=30).run(topic_id=topic_num)
+
         newsrag = SummarisationPipeline(generator=config.get_generator_model())
 
         async_result = newsrag.run_async(documents=documents)
@@ -140,6 +163,7 @@ with gr.Blocks() as demo:
     # keep persistent document store and sources list
     sources = gr.State(value=Sources())
     document_store = gr.State(value=config.get_document_store())
+    topics = gr.State(value=[])
 
     # arrange UI elements
     with gr.Row():
@@ -175,9 +199,9 @@ with gr.Blocks() as demo:
     ), outputs=(open_sidebar_btn, close_sidebar_btn, sidebar))
     
     # set actions and triggers
-    demo.load(get_topics, inputs=[document_store, min_date], outputs=[topic_selection])
-    refresh_topics.click(model_topics, inputs=[document_store, min_date], outputs=[topic_selection])
-    topic_selection.select(summarise, inputs=[document_store, sources, topic_selection], outputs=[chatbot, bibliography])
+    demo.load(get_topics, inputs=[document_store, min_date], outputs=[topic_selection, topics])
+    refresh_topics.click(model_topics, inputs=[document_store, min_date], outputs=[topic_selection, topics])
+    topic_selection.select(summarise, inputs=[document_store, sources, topics, topic_selection], outputs=[chatbot, bibliography])
     min_date.change(get_topics, inputs=[document_store, min_date], outputs=[topic_selection])
 
     qa_input.submit(user_query, inputs=[qa_input, chatbot], outputs=[chatbot, qa_input]).then(qa, inputs=[document_store, sources, chatbot], outputs=[chatbot, bibliography])
