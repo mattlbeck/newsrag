@@ -4,8 +4,8 @@
 inference_platform: ollama 
 
 # model ID used for the generator
-ollama_generator_model: mistral:7b
-hg_generator_model: meta-llama/Llama-3.2-3B-Instruct
+ollama_generator_model: llama3.1:8b
+hg_generator_model: meta-llama/Llama-3.1-8B-Instruct
 
 # model used for embeddings
 # `local` for using the SentenceTransformers package and a local model
