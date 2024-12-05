@@ -143,7 +143,7 @@ Keywords: {{ topic_words|join(', ') }}
 Topic: 
 """
 
-    def __init__(self, generator, max_words=10):
+    def __init__(self, generator, max_words: int=10):
         """
         :param generator: The haystack generator component to use in this pipeline.
         :param max_words: The maximum number of keywords provided to the generator.
@@ -174,7 +174,7 @@ Topic:
 class QARetrievalPipeline:
     """Retrieve documents from a document store relevant to the query."""
 
-    def __init__(self, document_store, text_embedder, document_count=10):
+    def __init__(self, document_store, text_embedder, document_count: int=10):
         self.document_store = document_store
         self.retriever = InMemoryEmbeddingRetriever(document_store, top_k=document_count)
         self.embedder = text_embedder
@@ -184,7 +184,7 @@ class QARetrievalPipeline:
         self.pipeline.add_component("retriever", self.retriever)
         self.pipeline.connect("embedder", "retriever")
 
-    def run(self, query) -> list[Document]:
+    def run(self, query: str) -> list[Document]:
         """Run the pipeline.
 
         :param query: the query to retrieve documents against
@@ -244,7 +244,7 @@ class TopicRetrievalPipeline:
     A ranker will additionally order the topics and limit the number of documents returned.
     """
 
-    def __init__(self, document_store, document_count=10):
+    def __init__(self, document_store, document_count: int=10):
         """
         :param document_store: the haystack document store to use in this pipeline.
         :param document_count: the number of documents retrieved by this pipeline.
@@ -257,7 +257,15 @@ class TopicRetrievalPipeline:
         self.pipeline.add_component("ranker", self.ranker)
         self.pipeline.connect("retriever", "ranker")
 
-    def run(self, topic_id, outliers=False) -> list[Document]:
+    def run(self, topic_id: int, outliers: bool=False) -> list[Document]:
+        """
+        Run the pipeline.
+
+        :param topic_id: the ID of the topic to retrieve documents for.
+        :param outliers: 
+            if true, inclued documents flagged as outliers but that nevertheless are 
+            closest in distance to this topic.
+        """
         conditions = [{"field": "meta.topic_id", "operator": "==", "value": topic_id}]
         if not outliers:
             conditions.append({"field": "meta.topic_outlier", "operator": "==", "value": False})
@@ -293,7 +301,15 @@ Summary:"""
         self.pipeline.add_component("llm", self.llm)
         self.pipeline.connect("prompt_builder", "llm")
     
-    def run(self, documents: list[Document], debug=False) -> str:
+    def run(self, documents: list[Document], debug: bool=False) -> str | dict:
+        """
+        Run the pipeline.
+
+        :param documents: the documents to summarise.
+        :param debug: 
+            if true, return all intermediary outputs of this pipeline as a dict instead
+            of just the generator output
+        """
         results = self.pipeline.run(
             {
                 "prompt_builder": {"documents": documents}

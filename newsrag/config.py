@@ -20,7 +20,7 @@ class AppConfig:
     env var counterparts follow the convention "APP_<UPPER_CASE_KEY>"
     """
 
-    def __init__(self, config_path="config.yaml"):
+    def __init__(self, config_path: str="config.yaml"):
         self.config = yaml.safe_load(open(config_path))
 
         # overwrite file config options with any stored as env vars
