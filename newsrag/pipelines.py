@@ -257,10 +257,18 @@ class TopicRetrievalPipeline:
         self.pipeline.add_component("ranker", self.ranker)
         self.pipeline.connect("retriever", "ranker")
 
-    def run(self, topic_id) -> list[Document]:
+    def run(self, topic_id, outliers=False) -> list[Document]:
+        conditions = [{"field": "meta.topic_id", "operator": "==", "value": topic_id}]
+        if not outliers:
+            conditions.append({"field": "meta.topic_outlier", "operator": "==", "value": False})
         results = self.pipeline.run(
             {
-                "retriever": {"filters": {"field": "meta.topic_id", "operator": "==", "value": topic_id}}
+                "retriever": {
+                    "filters": {
+                        "operator": "AND",
+                        "conditions": conditions
+                    }
+                }
             }
         )
         return results["ranker"]["documents"]
